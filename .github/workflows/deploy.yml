@@ -29,8 +29,8 @@ jobs:
         run: for f in server.js lib/*.js public/*.js; do node --check "$f"; done
       - name: Starts and answers /health
         run: |
-          BASE_PATH=/botc PORT=4100 DATA_DIR="$RUNNER_TEMP/botc" node server.js &
-          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:4100/botc/health && exit 0; sleep 0.5; done
+          PORT=4100 DATA_DIR="$RUNNER_TEMP/botc" node server.js &
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:4100/health && exit 0; sleep 0.5; done
           echo "server did not answer"; exit 1
 
   image:

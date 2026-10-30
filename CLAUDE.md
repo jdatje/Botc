@@ -1,8 +1,8 @@
 # BotC table helper — working notes
 
 Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen (jdatje/bar-screen,
-`app/lib/botc.js` + `app/public/botc/`), made multi-room for the public site boardpass.maisonbaron.nl
-(hosted by Gregor). All UI text in English.
+`app/lib/botc.js` + `app/public/botc/`), made multi-room for the public site botc.maisonbaron.nl
+(hosted by Gregor, sign-in via Boardpass at boardpass.maisonbaron.nl). All UI text in English.
 
 - Rooms: 5-char codes (no I/O/0/1); room = { code, g (game), members, tokens, stCode, scripts }, saved to
   DATA_DIR/rooms/<code>.json, deleted after ROOM_TTL_HOURS idle. `lib/game.js` handles one room at a time via

@@ -51,9 +51,9 @@ Each deploy pulls the image of that exact commit and waits for the health check 
 
 ### nginx
 
-- Sub path on an existing site (`https://boardpass.maisonbaron.nl/botc/`):
-  [`deploy/nginx/botc-location.conf`](deploy/nginx/botc-location.conf), included in that site's `server { }` block.
-- Its own (sub)domain: [`deploy/nginx/botc-site.conf`](deploy/nginx/botc-site.conf), with `BASE_PATH` empty.
+- Its own subdomain (`https://botc.maisonbaron.nl/`, the default): [`deploy/nginx/botc-site.conf`](deploy/nginx/botc-site.conf), with `BASE_PATH` empty.
+- Sub path on an existing site (`https://example.com/botc/`):
+  [`deploy/nginx/botc-location.conf`](deploy/nginx/botc-location.conf), included in that site's `server { }` block, with `BASE_PATH=/botc`.
 
 Both pass the WebSocket upgrade and keep `/boardpass/events` off the internet.
 
@@ -62,8 +62,8 @@ Both pass the WebSocket upgrade and keep `/boardpass/events` off the internet.
 | Variable | Default | What it does |
 |---|---|---|
 | `PORT` | `3000` | Port to listen on |
-| `BASE_PATH` | *(root)* | Serve under a sub path, e.g. `/botc` → `https://boardpass.maisonbaron.nl/botc/` |
-| `PUBLIC_URL` | from the request | Full public address used in the join QR code, e.g. `https://boardpass.maisonbaron.nl/botc` |
+| `BASE_PATH` | *(root)* | Serve under a sub path, e.g. `/botc` → `https://example.com/botc/` |
+| `PUBLIC_URL` | from the request | Full public address used in the join QR code, e.g. `https://botc.maisonbaron.nl` |
 | `DATA_DIR` | `./data` (`/data` in Docker) | Where games are saved (one small JSON file per game), so a restart doesn't lose them |
 | `ROOM_TTL_HOURS` | `48` | Games nobody touched for this long are deleted |
 | `MAX_ROOMS` | `1000` | Maximum number of games at once |
@@ -80,12 +80,12 @@ the app works as before, with typed names and no accounts.
 | `BOARDPASS_PUBLIC_URL`   | `https://boardpass.maisonbaron.nl` | The login page people are sent to               |
 | `BOARDPASS_INTERNAL_URL` | `http://boardpass:3002`         | Where the server checks sessions (Docker network)  |
 
-Set the game's events URL in Boardpass to `http://botc:3000/botc/boardpass/events`, so signing out or a
+Set the game's events URL in Boardpass to `http://botc:3000/boardpass/events` (with `BASE_PATH=/botc`: `/botc/boardpass/events`), so signing out or a
 password reset drops that person's live connection straight away. `GET /me` tells the page who is signed in.
 
 ### Health check
 
-`/health` (or `/botc/health`); the Docker image uses it as its `HEALTHCHECK`.
+`/health` (or `/botc/health` under a sub path); the Docker image uses it as its `HEALTHCHECK`.
 
 ## Security notes
 
