@@ -7,8 +7,10 @@
 # docker-compose.boardpass.yml through COMPOSE_FILE (see .env.example).
 services:
   botc:
+    # The deploy pipeline sets BOTC_IMAGE to the exact commit it built.
+    # `docker compose up -d --build` builds it locally instead.
+    image: ${BOTC_IMAGE:-ghcr.io/jdatje/botc:latest}
     build: .
-    image: botc-table
     restart: unless-stopped
     ports:
       # Only reachable from the server itself; nginx proxies to it (deploy/nginx).

@@ -35,6 +35,20 @@ docker build -t botc-table .
 docker run -d --name botc -p 3000:3000 -v botc-data:/data --restart unless-stopped botc-table
 ```
 
+### Deploy from `main`
+
+`.github/workflows/deploy.yml` checks every push and PR. On `main` it builds `ghcr.io/jdatje/botc` and,
+once switched on, deploys it to a VPS over SSH:
+
+1. On the VPS: `mkdir ~/botc`, then put a filled-in `.env` (from `.env.example`) in it. The pipeline copies the
+   compose files there but never touches `.env`.
+2. In the repo settings, add the secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (a private key whose public key
+   is in that user's `~/.ssh/authorized_keys`) and `VPS_KNOWN_HOSTS` (output of `ssh-keyscan your-vps`),
+   plus `VPS_PORT` if SSH isn't on 22.
+3. Add the repository variable `DEPLOY_ENABLED=true` (and `DEPLOY_PATH` if not `botc`).
+
+Each deploy pulls the image of that exact commit and waits for the health check before it calls it done.
+
 ### nginx
 
 - Sub path on an existing site (`https://boardpass.maisonbaron.nl/botc/`):
