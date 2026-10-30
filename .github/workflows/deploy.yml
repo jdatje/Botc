@@ -53,6 +53,7 @@ jobs:
         with:
           context: .
           push: true
+          build-args: GIT_SHA=${{ github.sha }}
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}
@@ -107,6 +108,12 @@ jobs:
             && docker compose pull botc \
             && docker compose up -d --no-build --wait --wait-timeout 120"
           ssh vps "docker logout ghcr.io >/dev/null; docker image prune -f >/dev/null"
+
+      - name: Check the VPS runs this commit
+        run: |
+          health=$(ssh vps "cd '$DEPLOY_PATH' && docker compose exec -T botc sh -c 'wget -qO- \"http://127.0.0.1:3000\${BASE_PATH}/health\"'")
+          echo "$health"
+          echo "$health" | grep -q '"version":"${{ github.sha }}"' || { echo "::error::the VPS answers with another version"; exit 1; }
 
       - name: Show container status
         if: always()

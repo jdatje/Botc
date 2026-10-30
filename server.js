@@ -60,7 +60,8 @@ const pageGate = async (req, res, next) => {
 
 const site = express.Router();
 site.use(compression());
-site.get('/health', (_req, res) => res.json({ ok: true, login: Boolean(boardpass), ...game.stats() }));
+// version: the git commit the image was built from (set by the deploy pipeline)
+site.get('/health', (_req, res) => res.json({ ok: true, version: process.env.GIT_SHA || 'dev', login: Boolean(boardpass), ...game.stats() }));
 // who am I (the start page uses this to skip the name field)
 site.get('/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');
