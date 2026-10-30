@@ -60,7 +60,14 @@ const saveSession = (s) => {
 };
 let myId = session?.playerId || null;
 let stCode = null; // the storyteller code, for a second storyteller device
-const urlCode = (new URLSearchParams(location.search).get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const params = new URLSearchParams(location.search);
+const urlCode = (params.get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+// links from a venue screen (the Wexer): ?code=X&name=Anna joins straight away,
+// ?code=X&watch=1 opens the table view; ?embed=1 = inside the venue's screen (a Close button)
+const urlName = (params.get('name') || '').trim().slice(0, 24);
+const urlWatch = params.get('watch') === '1';
+const EMBED = params.get('embed') === '1';
+const cleanUrl = () => history.replaceState(null, '', EMBED ? `${BASE}?embed=1` : BASE);
 const roomCode = () => session?.code || '';
 
 const view = () => (mode === 'st' ? st : mode === 'player' ? me : pub);
@@ -68,6 +75,18 @@ const meChatId = () => (mode === 'st' ? 'st' : myId);
 
 // ---------- Connect ----------
 async function hello() {
+  // a link that says who you are (venue screen): join or watch right away. A table view
+  // link always opens the table view, never a grimoire left open on that screen.
+  const sameName = session?.role === 'player' && session.name && session.name.toLowerCase() === urlName.toLowerCase();
+  if (urlCode && (urlWatch || urlName) && !(session?.code === urlCode && (urlWatch ? session.role === 'watch' : sameName || session.role === 'st'))) {
+    const res = urlWatch ? await call('room:watch', { code: urlCode }) : await call('room:join', { code: urlCode, name: urlName });
+    if (res?.ok) {
+      saveSession(urlWatch ? { code: res.code, role: 'watch' } : { code: res.code, role: 'player', playerId: res.playerId, name: res.name });
+      cleanUrl();
+      return enterRoom(res);
+    }
+    toast(res?.error || 'Could not join');
+  }
   // a join link for another game than the one this device is in: offer that one
   if (!session || (urlCode && urlCode !== session.code && session.role !== 'st')) {
     if (session && urlCode && urlCode !== session.code) saveSession(null);
@@ -465,6 +484,7 @@ function stHeader() {
       <button class="btn small" data-act="phase" data-to="night">🌙 Night ${v.day + 1}</button>`;
   return `<div class="hd-l"><span class="small muted">Storyteller</span><b class="hd-name">${phaseLabel(v)}</b></div>
     <div class="hd-ctrl">${ctrl}<button class="btn small" data-act="cards">🃏 Show</button></div>
+    ${EMBED ? `<button class="icon-btn" data-act="watch" aria-label="Table view" title="Back to the table view">⏏</button>` : ''}
     <button class="icon-btn" data-act="settings" aria-label="Settings">⚙</button>`;
 }
 
@@ -601,7 +621,7 @@ function renderPublic() {
       <span class="pub-code">Join: <b>${esc(roomCode())}</b></span>
       <button class="btn small" data-act="settings">⚙ Style</button>
       <button class="btn small" data-act="login">🔑 Storyteller</button>
-      <button class="btn small" data-act="leave-room">✕ Leave</button>
+      ${EMBED ? `<button class="btn small" data-act="close">✕ Close</button>` : `<button class="btn small" data-act="leave-room">✕ Leave</button>`}
     </div>
     <div class="square pub-square" data-square>${v.seats
       .map((s) => `<div class="seat ${s.dead ? 'dead' : ''}">${v.reveal ? token(s.role, { align: s.align }) : `<span class="tk blank"></span>`}${s.dead ? '<span class="shroud"></span>' : ''}${s.dead && s.ghost ? '<span class="ghost">vote</span>' : ''}<span class="seat-name">${esc(s.name)}</span>${v.reveal && s.shown ? `<span class="seat-note">thought: ${esc(s.shown.name)}</span>` : ''}</div>`)
@@ -654,6 +674,7 @@ function renderWaiting() {
     <p>Game <b>${esc(roomCode())}</b> · ${setup ? `the storyteller is setting up · ${v.total} ${v.total === 1 ? 'player' : 'players'} so far.` : 'a game is running. You can join the next one.'}</p>
     ${setup ? `<button class="btn primary big" data-act="join">🩸 Join this game</button>` : ''}
     <button class="btn" data-act="settings">⚙ Style</button>
+    <button class="btn" data-act="login">🔑 I'm the storyteller</button>
     <button class="btn" data-act="leave-room">✕ Leave this room</button></div>`;
 }
 
@@ -943,7 +964,7 @@ function openSettings() {
          <p class="small">Storyteller code: <b>${esc(stCode || '—')}</b><br><span class="muted">To open the grimoire on a second device too. Keep it secret.</span></p></div></div>
        <button class="btn wide" data-x="logout">⏏ Leave the grimoire on this device</button>`
       : mode === 'player'
-        ? `<button class="btn wide" data-x="leave">✕ Leave this room</button>`
+        ? `<button class="btn wide" data-x="stlogin">🔑 I'm the storyteller</button><button class="btn wide" data-x="leave">✕ Leave this room</button>`
         : '';
   openSheet(
     `<h2 class="h">Style</h2><p class="hint">Only for this device${mode === 'st' ? ' (storyteller)' : mode === 'public' ? ' (table view)' : ''}.</p>
@@ -967,6 +988,10 @@ function openSettings() {
         closeSheet();
         return logout();
       }
+      if (b.dataset.x === 'stlogin') {
+        closeSheet();
+        return login();
+      }
       if (b.dataset.x === 'leave') {
         closeSheet();
         return ACT['leave-room']();
@@ -985,10 +1010,19 @@ async function login() {
   enterRoom(res);
 }
 async function logout() {
-  if (!(await confirmSheet(`Leave the grimoire on this device? Note the storyteller code first (${stCode}) to come back.`, 'Leave'))) return;
+  if (!EMBED && !(await confirmSheet(`Leave the grimoire on this device? Note the storyteller code first (${stCode}) to come back.`, 'Leave'))) return;
+  const code = session?.code;
   await call('room:leave', { token: session?.token });
   saveSession(null);
   st = null;
+  // on a venue screen: back to the table view
+  if (EMBED && code) {
+    const res = await call('room:watch', { code });
+    if (res?.ok) {
+      saveSession({ code: res.code, role: 'watch' });
+      return enterRoom(res);
+    }
+  }
   setMode('home');
 }
 
@@ -1011,6 +1045,9 @@ const ACT = {
   },
   login,
   logout,
+  watch: logout,
+  // inside a venue screen: back to its own menu
+  close: () => window.parent?.postMessage({ botc: 'close' }, '*'),
   'leave-room': async () => {
     if (mode !== 'public' && !(await confirmSheet('Leave this game room?', 'Leave'))) return;
     await call('room:leave', {});

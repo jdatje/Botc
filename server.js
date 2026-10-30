@@ -6,6 +6,9 @@
 //               (default: taken from the request, also behind a proxy with X-Forwarded-* headers)
 //   DATA_DIR    where rooms are saved (default ./data)
 //   ROOM_TTL_HOURS, MAX_ROOMS   cleanup and limits (default 48 h, 1000 rooms)
+// Optional: a fixed "house room" for a venue screen (the Wexer bar screen). Off unless HOST_SECRET is set:
+//   HOST_SECRET  shared secret for the host API (POST /host/house with header X-Host-Secret)
+//   HOUSE_CODE   the house room's code, e.g. WEXER
 // Optional: sign in with Boardpass (everyone needs an account). Off unless BOARDPASS_SECRET is set:
 //   BOARDPASS_INTERNAL_URL  e.g. http://boardpass:3002 (Docker network)
 //   BOARDPASS_PUBLIC_URL    e.g. https://boardpass.maisonbaron.nl
@@ -95,6 +98,12 @@ site.post('/boardpass/events', async (req, res) => {
   }
 });
 site.get(['/', '/index.html'], pageGate);
+// Host API: the venue's own server keeps its house room and storyteller code in sync
+site.post('/host/house', express.json({ limit: '4kb' }), (req, res) => {
+  const secret = process.env.HOST_SECRET;
+  if (!secret || req.get('x-host-secret') !== secret) return res.status(404).end();
+  res.json(game.house(req.body?.code || process.env.HOUSE_CODE, req.body?.stCode));
+});
 // QR code with the join link for a room
 site.get('/qr/:code.png', async (req, res) => {
   const code = String(req.params.code).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
