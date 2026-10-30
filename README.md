@@ -43,11 +43,11 @@ once switched on, deploys it to a VPS over SSH:
 1. On the VPS: `mkdir ~/botc`, then put a filled-in `.env` (from `.env.example`) in it. The pipeline copies the
    compose files there but never touches `.env`.
 2. In the repo settings, add the secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (a private key whose public key
-   is in that user's `~/.ssh/authorized_keys`),
-   plus `VPS_PORT` if SSH isn't on 22.
-3. Add the repository variables `DEPLOY_ENABLED=true` and `VPS_HOST_FINGERPRINT`: the server's host key
-   fingerprint, e.g. the `SHA256:…` of the ED25519 line from `ssh-keyscan your-vps | ssh-keygen -lf -`.
-   The pipeline scans the server on each deploy and only connects if it matches. (`DEPLOY_PATH` if not `botc`.)
+   is in that user's `~/.ssh/authorized_keys`) and `VPS_KNOWN_HOSTS`: the server's host key fingerprint,
+   e.g. the `SHA256:…` of the ED25519 line from `ssh-keyscan your-vps | ssh-keygen -lf -` (full
+   `ssh-keyscan` lines work too). The pipeline scans the server on each deploy and only connects if it
+   matches. Add `VPS_PORT` if SSH isn't on 22.
+3. Add the repository variable `DEPLOY_ENABLED=true` (and `DEPLOY_PATH` if not `botc`).
 
 Each deploy pulls the image of that exact commit, waits for the health check, and then checks that `/health`
 reports that commit as its `version`. Open `https://botc.maisonbaron.nl/health` to see what's live.
