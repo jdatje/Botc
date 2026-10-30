@@ -1,5 +1,9 @@
 # BotC table helper — working notes
 
+**Jeroen: every BotC change goes into BOTH this repo and the Wexer (jdatje/bar-screen, `app/lib/botc.js` +
+`app/public/botc/`). In this repo it must end up merged to `main`. The Wexer still only gets pushed on Jeroen's go.**
+The two versions differ (rooms, Boardpass sign-in here; Wexer room/admin code there), so port changes by hand.
+
 Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen (jdatje/bar-screen,
 `app/lib/botc.js` + `app/public/botc/`), made multi-room for the public site botc.maisonbaron.nl
 (hosted by Gregor, sign-in via Boardpass at boardpass.maisonbaron.nl). All UI text in English.
