@@ -86,10 +86,18 @@ socket.on('connect', hello);
 
 // ---------- Boardpass sign-in (when the server has it on) ----------
 let account = null; // { username } when signed in with Boardpass
+let boardpassUrl = ''; // Boardpass itself: the game picker and the account page
+const boardpassLink = (path) => (boardpassUrl ? new URL(path, boardpassUrl).toString() : '');
+// "← All games" and the account page, only when sign-in is on
+function boardpassLinks(cls = '') {
+  if (!boardpassUrl) return '';
+  return `<nav class="bp-links ${cls}"><a href="${esc(boardpassLink('/'))}">← All games</a>${account ? `<a href="${esc(boardpassLink('/account'))}">${esc(account.username)} · Boardpass account</a>` : ''}</nav>`;
+}
 fetch(`${BASE}me`, { credentials: 'same-origin' })
   .then((r) => (r.ok ? r.json() : null))
   .then((r) => {
     account = r?.user || null;
+    boardpassUrl = r?.boardpassUrl || '';
     if (mode === 'home') render();
   })
   .catch(() => {});
@@ -608,6 +616,7 @@ const joinUrl = () => `${location.host}${BASE}?code=${roomCode()}`;
 function renderHome() {
   const code = urlCode || '';
   $('#app').innerHTML = `<div class="home pad">
+    ${boardpassLinks()}
     <div class="tk-back huge"></div>
     <h1 class="h home-title">Blood on the Clocktower</h1>
     <p class="muted">For a game in person, around one table: your phone is your token, notes and chats.</p>
@@ -939,7 +948,8 @@ function openSettings() {
   openSheet(
     `<h2 class="h">Style</h2><p class="hint">Only for this device${mode === 'st' ? ' (storyteller)' : mode === 'public' ? ' (table view)' : ''}.</p>
      <div class="styles">${STYLES.map((s) => `<button class="style-card ${s.id === cur ? 'on' : ''}" data-style="${s.id}"><span class="sw" data-sw="${s.id}"><i></i><i></i><i></i></span><b>${s.label}</b><small>${s.desc}</small></button>`).join('')}</div>
-     ${stPart}`,
+     ${stPart}
+     ${boardpassUrl ? `<h3 class="h">Boardpass</h3>${boardpassLinks('stack')}<p class="hint">Your seat stays in this game; come back any time.</p>` : ''}`,
     async (e) => {
       const b = e.target.closest('[data-style],[data-rule],[data-min],[data-x]');
       if (!b) return;

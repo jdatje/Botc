@@ -316,3 +316,9 @@ textarea.short { min-height: 140px; }
 .pub-code { font-size: 22px; letter-spacing: 2px; }
 .pub-code b { color: var(--accent); }
 .pub-qr { width: min(15vh, 150px); height: auto; border-radius: 12px; background: #fff; padding: 8px; }
+
+/* Boardpass: back to the game picker and the account page */
+.bp-links { width: 100%; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; font-size: 15px; }
+.bp-links a { color: var(--ink2); text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+.bp-links a:hover, .bp-links a:focus-visible { color: var(--accent); text-decoration: underline; }
+.bp-links.stack { flex-direction: column; gap: 0; }
