@@ -24,7 +24,7 @@ cp .env.example .env          # fill it in
 docker compose up -d --build
 ```
 
-It listens on `127.0.0.1:3003` and keeps games in the `botc-data` volume. The `.env` decides the mode:
+It listens on `127.0.0.1:3004` and keeps games in the `botc-data` volume. The `.env` decides the mode:
 keep the `COMPOSE_FILE=...` line to sign in with Boardpass (adds `docker-compose.boardpass.yml`,
 which joins the `boardpass` Docker network), or remove it to run without accounts.
 

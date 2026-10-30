@@ -14,7 +14,7 @@ services:
     restart: unless-stopped
     ports:
       # Only reachable from the server itself; nginx proxies to it (deploy/nginx).
-      - "127.0.0.1:${BOTC_PORT:-3003}:3000"
+      - "127.0.0.1:${BOTC_PORT:-3004}:3000"
     environment:
       BASE_PATH: ${BASE_PATH-}
       PUBLIC_URL: ${PUBLIC_URL:-}
