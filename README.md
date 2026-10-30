@@ -35,6 +35,21 @@ docker run -d --name botc -p 3000:3000 -v botc-data:/data --restart unless-stopp
 | `ROOM_TTL_HOURS` | `48` | Games nobody touched for this long are deleted |
 | `MAX_ROOMS` | `1000` | Maximum number of games at once |
 
+### Sign in with Boardpass (optional)
+
+Set these three and everyone needs a Boardpass account to play (player, storyteller and table view).
+Players then join as their account name and can't take over someone else's seat. Leave them out and
+the app works as before, with typed names and no accounts.
+
+| Variable                 | Example                         | What it does                                       |
+|--------------------------|---------------------------------|----------------------------------------------------|
+| `BOARDPASS_SECRET`       | from Boardpass › Admin › Games  | Turns sign-in on                                   |
+| `BOARDPASS_PUBLIC_URL`   | `https://boardpass.maisonbaron.nl` | The login page people are sent to               |
+| `BOARDPASS_INTERNAL_URL` | `http://boardpass:3002`         | Where the server checks sessions (Docker network)  |
+
+Set the game's events URL in Boardpass to `http://botc:3000/botc/boardpass/events`, so signing out or a
+password reset drops that person's live connection straight away. `GET /me` tells the page who is signed in.
+
 ### Behind a reverse proxy (nginx)
 
 The game is live over WebSockets (Socket.IO), so the proxy must pass the upgrade headers:
@@ -60,7 +75,7 @@ With `location /botc/` run the app with `BASE_PATH=/botc`. On its own (sub)domai
 - The storyteller gets a secret token on the device that created the game. A second storyteller device needs the game code plus a 6-digit storyteller code (shown in the storyteller's ⚙). Wrong storyteller codes are limited to 8 per 5 minutes.
 - Players' chats are private between the two people in them. The storyteller can't read them.
 - Imported scripts are only used in that game. Homebrew character images are not downloaded by the server; phones load them straight from their own `https://` address.
-- No accounts and no personal data beyond the names people type in. Games are deleted after `ROOM_TTL_HOURS`.
+- No accounts and no personal data beyond the names people type in (unless Boardpass sign-in is on: then the Boardpass username and user id are kept with the game). Games are deleted after `ROOM_TTL_HOURS`.
 
 ## Code layout
 

@@ -84,6 +84,25 @@ async function hello() {
 }
 socket.on('connect', hello);
 
+// ---------- Boardpass sign-in (when the server has it on) ----------
+let account = null; // { username } when signed in with Boardpass
+fetch(`${BASE}me`, { credentials: 'same-origin' })
+  .then((r) => (r.ok ? r.json() : null))
+  .then((r) => {
+    account = r?.user || null;
+    if (mode === 'home') render();
+  })
+  .catch(() => {});
+// the session ended (signed out elsewhere, password reset): the page sends you to the login
+socket.on('auth:revoked', () => location.reload());
+socket.on('connect_error', (err) => {
+  if (err?.message === 'login_required') location.reload();
+});
+// the server only kicks a socket when its sign-in ended; it won't reconnect by itself
+socket.on('disconnect', (reason) => {
+  if (reason === 'io server disconnect') location.reload();
+});
+
 // put a room:* answer on screen
 function enterRoom(res) {
   pub = res.pub;
@@ -595,7 +614,9 @@ function renderHome() {
     <form class="home-card" id="join-form">
       <h2 class="h">Join a game</h2>
       <label>Game code<input id="join-code" maxlength="6" autocomplete="off" autocapitalize="characters" value="${esc(code)}" placeholder="ABCDE" required></label>
-      <label>Your name<input id="join-name" maxlength="24" autocomplete="nickname" value="${esc(store.get('botc-name') || '')}" required></label>
+      ${account
+        ? `<p class="muted small">Playing as <b>${esc(account.username)}</b></p>`
+        : `<label>Your name<input id="join-name" maxlength="24" autocomplete="nickname" value="${esc(store.get('botc-name') || '')}" required></label>`}
       <button class="btn primary big" type="submit">Join</button>
     </form>
     <div class="home-card">
@@ -1089,10 +1110,10 @@ document.addEventListener('submit', async (e) => {
   if (f.id === 'join-form') {
     e.preventDefault();
     const code = $('#join-code').value.trim().toUpperCase();
-    const name = $('#join-name').value.trim();
+    const name = account ? account.username : $('#join-name').value.trim();
     const res = await call('room:join', { code, name, playerId: session?.code === code ? session.playerId : null });
     if (!res?.ok) return toast(res?.error || 'Could not join');
-    store.set('botc-name', name);
+    if (!account) store.set('botc-name', name);
     saveSession({ code: res.code, role: 'player', playerId: res.playerId, name: res.name });
     history.replaceState(null, '', BASE);
     return enterRoom(res);
