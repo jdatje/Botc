@@ -93,6 +93,38 @@ jobs:
             IdentitiesOnly yes
           EOF
 
+      # Says why SSH fails, as annotations on the run (readable even when the logs aren't)
+      - name: Check SSH
+        run: |
+          if ! fp=$(ssh-keygen -lf ~/.ssh/id_deploy 2>&1); then
+            echo "::error::VPS_SSH_KEY is not a valid private key ($fp). Paste the whole file, BEGIN and END lines included."
+            exit 1
+          fi
+          echo "::notice::Deploy key in VPS_SSH_KEY: $fp. On the VPS, 'ssh-keygen -lf ~deploy/.ssh/authorized_keys' must list the same SHA256."
+          if ! grep -q . ~/.ssh/known_hosts; then
+            echo "::error::VPS_KNOWN_HOSTS is empty. Use the output of: ssh-keyscan -p <port> <VPS_HOST>"
+            exit 1
+          fi
+          if out=$(ssh -o BatchMode=yes -o ConnectTimeout=20 vps true 2>&1); then
+            echo "SSH works"
+            exit 0
+          fi
+          case "$out" in
+            *"Host key verification failed"*|*"No ED25519 host key is known"*|*"host key for"*)
+              hint="VPS_KNOWN_HOSTS doesn't match the server. Run ssh-keyscan -p <port> with exactly the VPS_HOST value and paste all of it." ;;
+            *"Permission denied"*)
+              hint="The server refuses this key for VPS_USER. Its .pub must be in that user's ~/.ssh/authorized_keys (compare the SHA256 above)." ;;
+            *"Could not resolve hostname"*)
+              hint="VPS_HOST doesn't resolve. Use the plain IP or hostname (no user@, no ssh://)." ;;
+            *"Connection refused"*)
+              hint="Nothing listens for SSH on that port. Check VPS_PORT." ;;
+            *"timed out"*)
+              hint="GitHub can't reach the server. A firewall or fail2ban may only allow your own IP." ;;
+            *) hint="See the SSH error." ;;
+          esac
+          echo "::error::SSH to the VPS failed. $hint SSH said: $(echo "$out" | tr '\n' ' ' | cut -c1-300)"
+          exit 1
+
       - name: Copy compose files
         run: |
           ssh vps "mkdir -p '$DEPLOY_PATH'"
