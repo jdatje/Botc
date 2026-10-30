@@ -2,7 +2,7 @@
 // Serves the page and the live game over Socket.IO. Configure with env vars:
 //   PORT        port to listen on (default 3000)
 //   BASE_PATH   when served under a sub path, e.g. /botc (default: site root)
-//   PUBLIC_URL  full public address for the join QR code, e.g. https://boardpass.maisonbaron.nl/botc
+//   PUBLIC_URL  full public address for the join QR code, e.g. https://botc.maisonbaron.nl
 //               (default: taken from the request, also behind a proxy with X-Forwarded-* headers)
 //   DATA_DIR    where rooms are saved (default ./data)
 //   ROOM_TTL_HOURS, MAX_ROOMS   cleanup and limits (default 48 h, 1000 rooms)
