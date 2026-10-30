@@ -3,7 +3,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY . .
-ENV NODE_ENV=production PORT=3000 DATA_DIR=/data
+ARG GIT_SHA=dev
+ENV NODE_ENV=production PORT=3000 DATA_DIR=/data GIT_SHA=$GIT_SHA
 RUN mkdir -p /data && chown node:node /data
 VOLUME /data
 EXPOSE 3000

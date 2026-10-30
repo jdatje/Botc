@@ -47,7 +47,8 @@ once switched on, deploys it to a VPS over SSH:
    plus `VPS_PORT` if SSH isn't on 22.
 3. Add the repository variable `DEPLOY_ENABLED=true` (and `DEPLOY_PATH` if not `botc`).
 
-Each deploy pulls the image of that exact commit and waits for the health check before it calls it done.
+Each deploy pulls the image of that exact commit, waits for the health check, and then checks that `/health`
+reports that commit as its `version`. Open `https://botc.maisonbaron.nl/health` to see what's live.
 
 ### nginx
 
