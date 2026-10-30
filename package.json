@@ -1,0 +1,21 @@
+{
+  "name": "botc-table",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Blood on the Clocktower table helper: player phones (token, chats, notes, town square) and the storyteller's grimoire",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "compression": "^1.8.1",
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1"
+  }
+}
