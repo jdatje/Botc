@@ -621,7 +621,7 @@ function renderPublic() {
       <span class="pub-code">Join: <b>${esc(roomCode())}</b></span>
       <button class="btn small" data-act="settings">⚙ Style</button>
       <button class="btn small" data-act="login">🔑 Storyteller</button>
-      ${EMBED ? `<button class="btn small" data-act="close">✕ Close</button>` : `<button class="btn small" data-act="leave-room">✕ Leave</button>`}
+      ${EMBED ? `<button class="btn small" data-act="leave-room">⇄ Other game</button><button class="btn small" data-act="close">✕ Close</button>` : `<button class="btn small" data-act="leave-room">✕ Leave</button>`}
     </div>
     <div class="square pub-square" data-square>${v.seats
       .map((s) => `<div class="seat ${s.dead ? 'dead' : ''}">${v.reveal ? token(s.role, { align: s.align }) : `<span class="tk blank"></span>`}${s.dead ? '<span class="shroud"></span>' : ''}${s.dead && s.ghost ? '<span class="ghost">vote</span>' : ''}<span class="seat-name">${esc(s.name)}</span>${v.reveal && s.shown ? `<span class="seat-note">thought: ${esc(s.shown.name)}</span>` : ''}</div>`)
@@ -633,7 +633,35 @@ function renderPublic() {
 
 const joinUrl = () => `${location.host}${BASE}?code=${roomCode()}`;
 
+// inside a venue screen without a keyboard (the Wexer): type a game code on a letter pad
+const PAD = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+let padCode = '';
+function renderScreenHome() {
+  $('#app').innerHTML = `<div class="home pad screen-home">
+    <div class="screen-home-head"><h1 class="h home-title">Blood on the Clocktower</h1><button class="btn small" data-act="close">✕ Close</button></div>
+    <p class="muted">The storyteller starts the game on their phone. Type its game code here to show the table: the town square, the join QR code and the day timer.</p>
+    <div class="code-box" id="pad-code">${esc(padCode) || '<span class="muted">·····</span>'}</div>
+    <div class="code-pad">${[...PAD].map((c) => `<button class="btn" data-pad="${c}">${c}</button>`).join('')}<button class="btn" data-pad="back">⌫</button><button class="btn primary" data-pad="ok" ${padCode.length >= 4 ? '' : 'disabled'}>Show</button></div>
+    ${ccc()}
+  </div>`;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-pad]');
+  if (!b || mode !== 'home') return;
+  const k = b.dataset.pad;
+  if (k === 'back') padCode = padCode.slice(0, -1);
+  else if (k === 'ok') {
+    const res = await call('room:watch', { code: padCode });
+    if (!res?.ok) return toast(res?.error || 'No game with that code');
+    padCode = '';
+    saveSession({ code: res.code, role: 'watch' });
+    return enterRoom(res);
+  } else if (padCode.length < 6) padCode += k;
+  renderScreenHome();
+});
+
 function renderHome() {
+  if (EMBED) return renderScreenHome();
   const code = urlCode || '';
   $('#app').innerHTML = `<div class="home pad">
     ${boardpassLinks()}
