@@ -1,0 +1,25 @@
+# Blood on the Clocktower table helper.
+#
+#   cp .env.example .env      # fill it in
+#   docker compose up -d --build
+#
+# On its own this runs without accounts. To sign in with Boardpass, the .env adds
+# docker-compose.boardpass.yml through COMPOSE_FILE (see .env.example).
+services:
+  botc:
+    build: .
+    image: botc-table
+    restart: unless-stopped
+    ports:
+      # Only reachable from the server itself; nginx proxies to it (deploy/nginx).
+      - "127.0.0.1:${BOTC_PORT:-3003}:3000"
+    environment:
+      BASE_PATH: ${BASE_PATH:-/botc}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      ROOM_TTL_HOURS: ${ROOM_TTL_HOURS:-48}
+      MAX_ROOMS: ${MAX_ROOMS:-1000}
+    volumes:
+      - botc-data:/data
+
+volumes:
+  botc-data:

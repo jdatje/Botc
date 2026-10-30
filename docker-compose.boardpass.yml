@@ -1,0 +1,16 @@
+# Boardpass sign-in: everyone needs an account. Added by COMPOSE_FILE in .env.
+# Start Boardpass first: it creates the `boardpass` network, where it answers at http://boardpass:3002.
+services:
+  botc:
+    environment:
+      BOARDPASS_INTERNAL_URL: ${BOARDPASS_INTERNAL_URL:-http://boardpass:3002}
+      BOARDPASS_PUBLIC_URL: ${BOARDPASS_PUBLIC_URL:?Set BOARDPASS_PUBLIC_URL in .env, e.g. https://boardpass.maisonbaron.nl}
+      BOARDPASS_SECRET: ${BOARDPASS_SECRET:?Set BOARDPASS_SECRET in .env (Boardpass › Admin › Games)}
+    networks:
+      - default
+      # Boardpass reaches this container as http://botc:3000 for its events.
+      - boardpass
+
+networks:
+  boardpass:
+    external: true

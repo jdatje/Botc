@@ -19,10 +19,29 @@ npm start            # http://localhost:3000
 
 ### With Docker
 
-```bash
+```
+cp .env.example .env          # fill it in
+docker compose up -d --build
+```
+
+It listens on `127.0.0.1:3003` and keeps games in the `botc-data` volume. The `.env` decides the mode:
+keep the `COMPOSE_FILE=...` line to sign in with Boardpass (adds `docker-compose.boardpass.yml`,
+which joins the `boardpass` Docker network), or remove it to run without accounts.
+
+Without compose:
+
+```
 docker build -t botc-table .
 docker run -d --name botc -p 3000:3000 -v botc-data:/data --restart unless-stopped botc-table
 ```
+
+### nginx
+
+- Sub path on an existing site (`https://boardpass.maisonbaron.nl/botc/`):
+  [`deploy/nginx/botc-location.conf`](deploy/nginx/botc-location.conf), included in that site's `server { }` block.
+- Its own (sub)domain: [`deploy/nginx/botc-site.conf`](deploy/nginx/botc-site.conf), with `BASE_PATH` empty.
+
+Both pass the WebSocket upgrade and keep `/boardpass/events` off the internet.
 
 ### Settings (environment variables)
 
@@ -50,24 +69,9 @@ the app works as before, with typed names and no accounts.
 Set the game's events URL in Boardpass to `http://botc:3000/botc/boardpass/events`, so signing out or a
 password reset drops that person's live connection straight away. `GET /me` tells the page who is signed in.
 
-### Behind a reverse proxy (nginx)
+### Health check
 
-The game is live over WebSockets (Socket.IO), so the proxy must pass the upgrade headers:
-
-```nginx
-location /botc/ {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 1h;
-}
-```
-
-With `location /botc/` run the app with `BASE_PATH=/botc`. On its own (sub)domain, leave `BASE_PATH` empty and use `location /`. The health check is at `/health` (or `/botc/health`).
+`/health` (or `/botc/health`); the Docker image uses it as its `HEALTHCHECK`.
 
 ## Security notes
 
