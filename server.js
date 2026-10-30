@@ -6,15 +6,28 @@
 //               (default: taken from the request, also behind a proxy with X-Forwarded-* headers)
 //   DATA_DIR    where rooms are saved (default ./data)
 //   ROOM_TTL_HOURS, MAX_ROOMS   cleanup and limits (default 48 h, 1000 rooms)
+// Optional: sign in with Boardpass (everyone needs an account). Off unless BOARDPASS_SECRET is set:
+//   BOARDPASS_INTERNAL_URL  e.g. http://boardpass:3002 (Docker network)
+//   BOARDPASS_PUBLIC_URL    e.g. https://boardpass.maisonbaron.nl
+//   BOARDPASS_SECRET        the game's secret from Boardpass › Admin › Games
 import express from 'express';
 import compression from 'compression';
 import http from 'node:http';
 import { Server } from 'socket.io';
 import QRCode from 'qrcode';
 import * as game from './lib/game.js';
+import { createBoardpassClient } from './lib/boardpass-client.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const BASE = `/${String(process.env.BASE_PATH || '').replace(/^\/+|\/+$/g, '')}`.replace(/^\/$/, '');
+
+const boardpass = process.env.BOARDPASS_SECRET
+  ? createBoardpassClient({
+      internalUrl: process.env.BOARDPASS_INTERNAL_URL || 'http://boardpass:3002',
+      publicUrl: process.env.BOARDPASS_PUBLIC_URL,
+      secret: process.env.BOARDPASS_SECRET,
+    })
+  : null;
 
 const app = express();
 app.set('trust proxy', true);
@@ -23,9 +36,58 @@ const server = http.createServer(app);
 const io = new Server(server, { path: `${BASE}/socket.io`, maxHttpBufferSize: 512 * 1024 });
 game.attach(io);
 
+const publicBase = (req) => (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}${BASE}`).replace(/\/$/, '');
+
+// Boardpass: the page needs a signed-in user, so does every socket
+async function whoIs(req, res) {
+  try {
+    return await boardpass.authenticate(req);
+  } catch (err) {
+    console.error('Boardpass:', err.message);
+    res.status(503).type('text').send('Sign-in is unavailable right now. Try again in a minute.');
+    return undefined;
+  }
+}
+const pageGate = async (req, res, next) => {
+  if (!boardpass) return next();
+  const session = await whoIs(req, res);
+  if (session === undefined) return;
+  if (session) return next();
+  // come back to the same page, join code included
+  const back = `${publicBase(req)}${req.url === '/' ? '/' : req.url}`;
+  res.redirect(302, boardpass.loginUrl(back));
+};
+
 const site = express.Router();
 site.use(compression());
-site.get('/health', (_req, res) => res.json({ ok: true, ...game.stats() }));
+site.get('/health', (_req, res) => res.json({ ok: true, login: Boolean(boardpass), ...game.stats() }));
+// who am I (the start page uses this to skip the name field)
+site.get('/me', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!boardpass) return res.json({ login: false, user: null });
+  const session = await whoIs(req, res);
+  if (session === undefined) return;
+  res.json({ login: true, user: session ? { id: session.user.id, username: session.user.username } : null, loginUrl: boardpass.loginUrl(publicBase(req) + '/') });
+});
+// Boardpass tells us about sign-outs, password resets and deleted users: drop those sockets
+site.post('/boardpass/events', async (req, res) => {
+  if (!boardpass) return res.status(404).end();
+  try {
+    const event = await boardpass.handleEvent(req);
+    for (const socket of io.of('/').sockets.values()) {
+      const s = socket.boardpass;
+      if (!s) continue;
+      if ((event.tokenHash && s.tokenHash === event.tokenHash) || (event.userId !== undefined && event.type !== 'user.updated' && s.user.id === event.userId)) {
+        socket.emit('auth:revoked');
+        socket.disconnect(true);
+      }
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err.message });
+  }
+});
+site.get(['/', '/index.html'], pageGate);
 // QR code with the join link for a room
 site.get('/qr/:code.png', async (req, res) => {
   const code = String(req.params.code).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
@@ -40,9 +102,24 @@ site.use(express.static('public', { setHeaders: (res) => res.setHeader('Cache-Co
 if (BASE) app.use((req, res, next) => (req.path === BASE ? res.redirect(301, `${BASE}/${req.url.slice(BASE.length)}`) : next()));
 app.use(BASE || '/', site);
 
+if (boardpass) {
+  io.use(async (socket, next) => {
+    try {
+      const session = await boardpass.authenticate(socket.request);
+      if (!session) return next(new Error('login_required'));
+      socket.boardpass = session; // not socket.data: game.js resets that when you enter a room
+      next();
+    } catch (err) {
+      console.error('Boardpass:', err.message);
+      next(new Error('login_unavailable'));
+    }
+  });
+}
+
 io.on('connection', (socket) => {
   const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0].trim() || socket.handshake.address;
-  game.register(socket, ip);
+  const user = socket.boardpass ? { id: socket.boardpass.user.id, username: socket.boardpass.user.username } : null;
+  game.register(socket, ip, user);
 });
 
-server.listen(PORT, () => console.log(`Blood on the Clocktower helper on :${PORT}${BASE || '/'}`));
+server.listen(PORT, () => console.log(`Blood on the Clocktower helper on :${PORT}${BASE || '/'}${boardpass ? ' (Boardpass sign-in on)' : ''}`));
