@@ -68,7 +68,13 @@ site.get('/me', async (req, res) => {
   if (!boardpass) return res.json({ login: false, user: null });
   const session = await whoIs(req, res);
   if (session === undefined) return;
-  res.json({ login: true, user: session ? { id: session.user.id, username: session.user.username } : null, loginUrl: boardpass.loginUrl(publicBase(req) + '/') });
+  res.json({
+    login: true,
+    user: session ? { id: session.user.id, username: session.user.username } : null,
+    loginUrl: boardpass.loginUrl(publicBase(req) + '/'),
+    // the game picker and account page, for the "All games" links
+    boardpassUrl: process.env.BOARDPASS_PUBLIC_URL || '',
+  });
 });
 // Boardpass tells us about sign-outs, password resets and deleted users: drop those sockets
 site.post('/boardpass/events', async (req, res) => {
