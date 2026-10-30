@@ -64,8 +64,9 @@ jobs:
     name: Deploy to VPS
     needs: image
     # Turn on with the repository variable DEPLOY_ENABLED=true once the secrets below are set:
-    #   secrets VPS_HOST, VPS_USER, VPS_SSH_KEY (and VPS_PORT if it isn't 22), and the variable
-    #   VPS_HOST_FINGERPRINT: the server's SHA256 host key fingerprint (ssh-keyscan HOST | ssh-keygen -lf -).
+    #   secrets VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_KNOWN_HOSTS (and VPS_PORT if it isn't 22).
+    #   VPS_KNOWN_HOSTS is either the server's host key fingerprint (SHA256:…, from
+    #   ssh-keyscan HOST | ssh-keygen -lf -) or full ssh-keyscan lines.
     # The VPS keeps its own .env in DEPLOY_PATH (default ~/botc); this job never touches it.
     if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
@@ -84,10 +85,28 @@ jobs:
           install -m 700 -d ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
-          # The server's host key, checked against the fingerprint you saved, so nobody can pose as the VPS
-          want="${{ vars.VPS_HOST_FINGERPRINT }}"
+          cat > ~/.ssh/config <<EOF
+          Host vps
+            HostName ${{ secrets.VPS_HOST }}
+            User ${{ secrets.VPS_USER }}
+            Port $SSH_PORT
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+          EOF
+          # The server's host key, checked against what you saved, so nobody can pose as the VPS.
+          # VPS_KNOWN_HOSTS holds full ssh-keyscan lines, or just a fingerprint (SHA256:…).
+          cat > ~/.ssh/saved <<'SAVED'
+          ${{ secrets.VPS_KNOWN_HOSTS }}
+          SAVED
+          sed -i 's/^[[:space:]]*//' ~/.ssh/saved
+          if grep -qE '^[^#[:space:]]+ (ssh-|ecdsa-|sk-)' ~/.ssh/saved; then
+            grep -v '^#' ~/.ssh/saved > ~/.ssh/known_hosts
+            exit 0
+          fi
+          want=$(grep -oE 'SHA256:[A-Za-z0-9+/=]+' ~/.ssh/saved | head -1)
+          [ -n "$want" ] || want=$(grep -oE '[A-Za-z0-9+/]{43}' ~/.ssh/saved | head -1)
           if [ -z "$want" ]; then
-            echo "::error::Set the repository variable VPS_HOST_FINGERPRINT (e.g. SHA256:abc…), from: ssh-keyscan <VPS_HOST> | ssh-keygen -lf -"
+            echo "::error::VPS_KNOWN_HOSTS is empty or not a fingerprint. Put the server's SHA256:… in it (ssh-keyscan <VPS_HOST> | ssh-keygen -lf -)."
             exit 1
           fi
           ssh-keyscan -p "$SSH_PORT" -T 15 "${{ secrets.VPS_HOST }}" 2>/dev/null > ~/.ssh/scanned
@@ -103,17 +122,9 @@ jobs:
             if [ "$fp" = "SHA256:${want#SHA256:}" ]; then echo "$line" >> ~/.ssh/known_hosts; fi
           done < <(grep -v '^#' ~/.ssh/scanned)
           if ! grep -q . ~/.ssh/known_hosts; then
-            echo "::error::The server's host key doesn't match VPS_HOST_FINGERPRINT. It shows: $(echo $found | tr '\n' ' ')"
+            echo "::error::The server's host key doesn't match VPS_KNOWN_HOSTS. It shows: $(echo $found | tr '\n' ' ')"
             exit 1
           fi
-          cat > ~/.ssh/config <<EOF
-          Host vps
-            HostName ${{ secrets.VPS_HOST }}
-            User ${{ secrets.VPS_USER }}
-            Port $SSH_PORT
-            IdentityFile ~/.ssh/id_deploy
-            IdentitiesOnly yes
-          EOF
 
       # Says why SSH fails, as annotations on the run (readable even when the logs aren't)
       - name: Check SSH
@@ -129,7 +140,7 @@ jobs:
           fi
           case "$out" in
             *"Host key verification failed"*|*"No ED25519 host key is known"*|*"host key for"*)
-              hint="The host key changed while deploying. Check VPS_HOST_FINGERPRINT." ;;
+              hint="VPS_KNOWN_HOSTS doesn't match the server. Put the server's fingerprint (SHA256:…) in it." ;;
             *"Permission denied"*)
               hint="The server refuses this key for VPS_USER. Its .pub must be in that user's ~/.ssh/authorized_keys (compare the SHA256 above)." ;;
             *"Could not resolve hostname"*)
