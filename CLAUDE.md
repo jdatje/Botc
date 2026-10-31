@@ -21,4 +21,9 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 - TPI Community Created Content Policy: free, CCC logo visible, unofficial line, in-person only (no online
   play that competes with their app). Don't remove the footer.
 - Boardpass sign-in: optional, on when BOARDPASS_SECRET is set (server.js gates `/` and the Socket.IO handshake; `game.register(socket, ip, user)` ties members to `userId`). `lib/boardpass-client.js` is a copy of gregorvwk/accounts `client/boardpass-client.js`.
+- Setup rules live in `public/setup.js` (shared by server + client): official table + every [bracket] character, checked
+  against the wiki's "How to Run" + TPI jinxes (31 Oct 2026). Model = real characters on seats (Drunk = Outsider,
+  Marionette = Minion); NOT_DEALT (Lil' Monsta) goes in `g.offBag`. Travellers don't count. Random deals: build →
+  repair → `setupRules().ok`. Seating: Lord of Typhon line, Marionette next to the Demon. The wiki API works from CCR:
+  `https://wiki.bloodontheclocktower.com/api.php?action=parse&page=Baron&prop=wikitext&format=json`.
 - Test locally: `BASE_PATH=/botc PORT=4100 DATA_DIR=/tmp/x node server.js`.

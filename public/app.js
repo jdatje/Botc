@@ -5,6 +5,7 @@
 //  - a table view for a TV or laptop facing the table: day timer and town square
 // Character data and icons: The Pandemonium Institute's toolmaker resources.
 import { RULES } from './rules.js';
+import { setupRules, fmtNeed, MULTI, NOT_DEALT, TEAMS4 } from './setup.js';
 
 // works at the site root and under a sub path (e.g. /botc/)
 const BASE = location.pathname.replace(/[^/]*$/, '');
@@ -502,11 +503,14 @@ const ST_BODY = {
       return `<h2 class="h">${phaseLabel(v)}</h2>
         <label class="toggle"><input type="checkbox" data-act="reveal" ${v.reveal ? 'checked' : ''}> Show the grimoire on the Wexer and phones</label>
         <button class="btn primary wide" data-act="newgame">New game with the same players</button>${revealHtml(v)}`;
-    const n = v.seats.length;
+    const n = v.players;
+    const trav = v.seats.length - v.players;
     const c = v.counts;
     const inGame = new Set(v.seats.map((s) => s.playerId));
     const dealt = v.seats.length && v.seats.every((s) => s.role);
-    const notes = [...new Set(v.seats.map((s) => s.role).filter((r) => r?.setupNote).map((r) => `${r.name}: [${r.setupNote}]`))];
+    const inPlayIds = [...v.seats.filter((s) => s.role && s.role.team !== 'traveller').map((s) => s.role.id), ...(v.offBag || []).map((r) => r.id)];
+    const roleOf = (id) => v.script.roles.find((r) => r.id === id) || roleById(id);
+    const dealtRules = dealt && n >= 5 ? setupRules(n, inPlayIds, (id) => roleOf(id)?.team, (id) => v.script.roles.some((r) => r.id === id)) : null;
     return `
       <section class="block"><h3 class="h">1 · Script</h3>
         <div class="script-chips">${v.scripts
@@ -514,7 +518,7 @@ const ST_BODY = {
           .join('')}</div>
         <button class="btn small" data-act="import">⬆️ Import a script (JSON)</button>
       </section>
-      <section class="block"><h3 class="h">2 · Players <span class="muted small">(${n})</span></h3>
+      <section class="block"><h3 class="h">2 · Players <span class="muted small">(${n}${trav ? ` + ${trav} Traveller${trav === 1 ? '' : 's'}` : ''})</span></h3>
         <div class="share"><img src="qr/${esc(roomCode())}.png" alt="QR code to join" class="share-qr"><p>Players scan this or go to <b>${esc(joinUrl())}</b> and use code <b class="big-code">${esc(roomCode())}</b>. Everyone who joins shows up here; tick who plays.</p></div>
         <div class="chips">${roomPlayers
           .map((p) => `<button class="chip ${inGame.has(p.id) ? 'on' : ''}" data-act="pick-player" data-id="${esc(p.id)}">${inGame.has(p.id) ? '✓ ' : ''}${esc(p.name)}${p.online || p.manual ? '' : ' 💤'}</button>`)
@@ -528,7 +532,10 @@ const ST_BODY = {
       </section>
       <section class="block"><h3 class="h">3 · Characters</h3>
         ${n < 5 ? '<p class="muted">You need at least 5 players.</p>' : `<p class="counts"><b>${n} players:</b> <span class="good">${c.townsfolk} Townsfolk</span> · <span class="good">${c.outsider} Outsider${c.outsider === 1 ? '' : 's'}</span> · <span class="evil">${c.minion} Minion${c.minion === 1 ? '' : 's'}</span> · <span class="evil">${c.demon} Demon</span></p>
-        ${notes.length ? `<p class="hint">Setup changes in play: ${notes.map(esc).join(' · ')}</p>` : ''}
+        ${n > 15 ? '<p class="hint">More than 15 players: the official setup stops at 15, so the rest should be Travellers.</p>' : ''}
+        ${trav ? `<p class="hint">Travellers don't count here and keep their character when dealing.</p>` : ''}
+        ${dealtRules ? `<h4 class="sub">In play now</h4>${setupCounter(dealtRules, (id) => roleOf(id)?.name || id, inPlayIds)}` : ''}
+        ${v.offBag?.length ? `<p class="hint">Also in play without a player: ${v.offBag.map((r) => esc(r.name)).join(', ')}</p>` : ''}
         <div class="row"><button class="btn" data-act="random-roles">🎲 Random characters</button><button class="btn" data-act="choose-roles">✋ Choose characters</button></div>
         ${dealt ? `<p class="hint">Dealt. Tap a player in the Grimoire to change a character. A Drunk automatically sees a Townsfolk that's not in play.</p>` : ''}`}
       </section>
@@ -919,28 +926,60 @@ function openBluffs() {
   draw();
 }
 
+// live setup counter: what's picked against what the setup needs, with every [setup] change
+const TEAM_LABEL = { townsfolk: ['Townsfolk', 'Townsfolk'], outsider: ['Outsider', 'Outsiders'], minion: ['Minion', 'Minions'], demon: ['Demon', 'Demons'] };
+function setupCounter(r, roleName, picks = []) {
+  const by = [...new Set(picks)].filter((id) => /\[/.test(roleById(id)?.ability || '')).map(roleName);
+  const cell = (t) => {
+    const ok = r.need[t].includes(r.have[t]);
+    const label = TEAM_LABEL[t][r.need[t].length === 1 && r.need[t][0] === 1 ? 0 : 1];
+    return `<span class="cnt ${ok ? 'ok' : 'off'} ${t === 'minion' || t === 'demon' ? 'evil' : 'good'}"><b>${r.have[t]}/${fmtNeed(r.need[t])}</b> ${label}</span>`;
+  };
+  const changed = TEAMS4.some((t) => r.need[t].length !== 1 || r.need[t][0] !== r.base[t]);
+  const warn = r.missing.map((m) => (m.req ? `${roleName(m.id)} needs the ${roleName(m.req)} in play.` : `${roleName(m.id)} is picked twice.`));
+  return `<div class="counter">${TEAMS4.map(cell).join('')}</div>
+    ${changed ? `<p class="hint">Normal for ${r.n} players: ${r.base.townsfolk} Townsfolk, ${r.base.outsider} Outsider${r.base.outsider === 1 ? '' : 's'}, ${r.base.minion} Minion${r.base.minion === 1 ? '' : 's'}, ${r.base.demon} Demon. Changed by: ${esc(by.join(', ') || 'the setup rules')}.</p>` : ''}
+    ${r.notes.length ? `<ul class="setup-notes">${r.notes.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    ${warn.length ? `<p class="warn">⚠ ${warn.map(esc).join(' ')}</p>` : ''}`;
+}
+
 function openChooseRoles() {
-  let picked = st.seats.map((s) => s.role?.id).filter(Boolean);
-  const n = st.seats.length;
+  const n = st.players;
+  let picked = [...st.seats.filter((s) => s.role && s.role.team !== 'traveller').map((s) => s.role.id), ...(st.offBag || []).map((r) => r.id)];
+  const roleOf = (id) => st.script.roles.find((r) => r.id === id) || roleById(id);
+  const roleName = (id) => roleOf(id)?.name || id;
+  const onScript = (id) => st.script.roles.some((r) => r.id === id);
+  const dealtCount = () => picked.filter((id) => !NOT_DEALT[id]).length;
   const draw = () => {
-    const by = (t) => picked.filter((id) => st.script.roles.find((r) => r.id === id)?.team === t).length;
-    const c = st.counts;
+    const r = setupRules(n, picked, (id) => roleOf(id)?.team, onScript);
+    const copies = [...new Set(picked.filter((id) => MULTI[id]))]
+      .map((id) => `<span class="copies">${esc(roleName(id))} ×${picked.filter((x) => x === id).length}<button class="icon-btn" data-copy="-1" data-id="${esc(id)}" aria-label="One fewer">−</button><button class="icon-btn" data-copy="1" data-id="${esc(id)}" aria-label="One more">+</button></span>`)
+      .join('');
     openSheet(
       `${rolePicker(st.script.roles, {
         selected: picked,
         title: `Choose ${n} characters`,
-        extra: `<p class="counts">Picked ${picked.length}/${n}: <span class="good">${by('townsfolk')}/${c.townsfolk} Townsfolk</span> · <span class="good">${by('outsider')}/${c.outsider} Outsiders</span> · <span class="evil">${by('minion')}/${c.minion} Minions</span> · <span class="evil">${by('demon')}/${c.demon} Demon</span></p><p class="hint">Some characters change these numbers (look for [brackets] in their ability).</p>`,
+        extra: `<p class="counts">Picked ${dealtCount()}/${n}${picked.length > dealtCount() ? ` (+ ${picked.filter((id) => NOT_DEALT[id]).map(roleName).join(', ')}, not given to a player)` : ''}</p>${setupCounter(r, roleName, picked)}${copies ? `<div class="row">${copies}</div>` : ''}`,
       })}
-      <div class="row sticky-foot"><button class="btn primary" data-x="deal" ${picked.length === n ? '' : 'disabled'}>Deal at random to the players</button></div>`,
+      <div class="row sticky-foot"><button class="btn primary" data-x="deal" ${dealtCount() === n ? '' : 'disabled'}>${r.ok || dealtCount() !== n ? 'Deal at random to the players' : 'Deal anyway (setup is off)'}</button></div>`,
       async (e) => {
         const b = e.target.closest('button');
         if (!b) return;
+        if (b.dataset.copy) {
+          const id = b.dataset.id;
+          if (b.dataset.copy === '1' && dealtCount() < n) picked.push(id);
+          else if (b.dataset.copy === '-1' && picked.filter((x) => x === id).length > 1) picked.splice(picked.lastIndexOf(id), 1);
+          return draw();
+        }
         if (b.dataset.role) {
           const id = b.dataset.role;
-          picked = picked.includes(id) ? picked.filter((x) => x !== id) : picked.length < n ? [...picked, id] : picked;
+          if (picked.includes(id)) picked = picked.filter((x) => x !== id);
+          else if (NOT_DEALT[id] || dealtCount() < n) picked = [...picked, id];
+          else return toast(`Already ${n} picked: tap one to remove it first`);
           return draw();
         }
         if (b.dataset.x === 'deal') {
+          if (!r.ok && !(await confirmSheet('The numbers don’t match the setup rules. Deal anyway?', 'Deal anyway'))) return draw();
           const res = await call('botc:dealRoles', { ids: picked });
           if (!res?.ok) return toast(res?.error || 'Could not deal');
           closeSheet();
