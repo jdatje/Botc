@@ -26,4 +26,7 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
   Marionette = Minion); NOT_DEALT (Lil' Monsta) goes in `g.offBag`. Travellers don't count. Random deals: build →
   repair → `setupRules().ok`. Seating: Lord of Typhon line, Marionette next to the Demon. The wiki API works from CCR:
   `https://wiki.bloodontheclocktower.com/api.php?action=parse&page=Baron&prop=wikitext&format=json`.
+- Test mode (⚙ in the grimoire → 🧪): `?devgrid=1` shows the grimoire, table view and one frame per test player.
+  `?dev=<slot>` prefixes localStorage keys so each frame is its own device. Test players = names added by hand
+  (`manual`); a frame plays one via `room:dev` (needs the storyteller token), so it also works with Boardpass on.
 - Test locally: `BASE_PATH=/botc PORT=4100 DATA_DIR=/tmp/x node server.js`.

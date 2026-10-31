@@ -10,10 +10,14 @@ import { setupRules, fmtNeed, MULTI, NOT_DEALT, TEAMS4 } from './setup.js';
 // works at the site root and under a sub path (e.g. /botc/)
 const BASE = location.pathname.replace(/[^/]*$/, '');
 const socket = io({ path: `${BASE}socket.io`, transports: ['websocket', 'polling'], tryAllTransports: true });
+// test mode: ?dev=<slot> gives this frame its own storage, so several "devices" fit in one browser
+const DEV = (new URLSearchParams(location.search).get('dev') || '').replace(/[^a-z0-9]/gi, '').slice(0, 8);
+const DEVGRID = new URLSearchParams(location.search).get('devgrid') === '1';
+const pre = DEV ? `dev:${DEV}:` : '';
 const store = {
-  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
-  del: (k) => { try { localStorage.removeItem(k); } catch {} },
+  get: (k) => { try { return localStorage.getItem(pre + k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(pre + k, v); } catch {} },
+  del: (k) => { try { localStorage.removeItem(pre + k); } catch {} },
 };
 const call = (ev, p = {}) => new Promise((res) => socket.timeout(15000).emit(ev, p, (err, r) => res(err ? null : r)));
 const $ = (s, el = document) => el.querySelector(s);
@@ -68,7 +72,7 @@ const urlCode = (params.get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, '
 const urlName = (params.get('name') || '').trim().slice(0, 24);
 const urlWatch = params.get('watch') === '1';
 const EMBED = params.get('embed') === '1';
-const cleanUrl = () => history.replaceState(null, '', EMBED ? `${BASE}?embed=1` : BASE);
+const cleanUrl = () => history.replaceState(null, '', EMBED ? `${BASE}?embed=1` : DEV ? `${BASE}?dev=${DEV}` : DEVGRID ? `${BASE}?devgrid=1` : BASE);
 const roomCode = () => session?.code || '';
 
 const view = () => (mode === 'st' ? st : mode === 'player' ? me : pub);
@@ -76,6 +80,20 @@ const meChatId = () => (mode === 'st' ? 'st' : myId);
 
 // ---------- Connect ----------
 async function hello() {
+  // test mode: a frame playing a test player (storyteller token + a name added by hand)
+  const devPlayer = DEV && params.get('devplayer');
+  if (devPlayer || session?.devToken) {
+    const want = devPlayer ? { code: urlCode, token: params.get('devtoken'), playerId: devPlayer } : { code: session.code, token: session.devToken, playerId: session.playerId };
+    const res = await call('room:dev', want);
+    if (res?.ok) {
+      saveSession({ code: res.code, role: 'player', playerId: res.playerId, name: res.name, devToken: want.token });
+      cleanUrl();
+      return enterRoom(res);
+    }
+    saveSession(null);
+    toast(res?.error || 'Test player not available');
+    return setMode('home');
+  }
   // a link that says who you are (venue screen): join or watch right away. A table view
   // link always opens the table view, never a grimoire left open on that screen.
   const sameName = session?.role === 'player' && session.name && session.name.toLowerCase() === urlName.toLowerCase();
@@ -140,7 +158,7 @@ function enterRoom(res) {
     st = res.st;
     return setMode('st');
   }
-  if (session?.token) saveSession({ ...session, token: null, role: session.playerId ? 'player' : 'watch' });
+  if (session?.token && !session.devToken) saveSession({ ...session, token: null, role: session.playerId ? 'player' : 'watch' });
   if (session?.role === 'player' && res.me) {
     me = res.me;
     myId = session.playerId;
@@ -275,6 +293,7 @@ const unreadTotal = () => Object.keys(chats).reduce((n, k) => n + unread(k), 0);
 // ---------- Render ----------
 let lastBody = '';
 function render(force) {
+  if (DEVGRID) return renderDevGrid();
   const app = $('#app');
   app.className = `mode-${mode} phase-${view()?.phase || 'none'}`;
   if (mode === 'loading') return (app.innerHTML = '<div class="center muted">Connecting…</div>');
@@ -602,6 +621,89 @@ const logItems = () =>
 function updateLog() {
   const el = $('#log');
   if (el) el.innerHTML = logItems();
+}
+
+// ---------- Test mode: the grimoire, the table view and every test player side by side ----------
+let gridKey = '';
+async function renderDevGrid() {
+  const app = $('#app');
+  app.className = 'mode-devgrid';
+  if (mode !== 'st' || !session?.token) {
+    gridKey = '';
+    app.innerHTML = `<div class="center pad"><h2 class="h">Test mode</h2><p class="muted">Open the grimoire first, then choose 🧪 Test mode in ⚙.</p><a class="btn" href="${BASE}">Back</a></div>`;
+    return;
+  }
+  const members = (await call('botc:roomPlayers')) || [];
+  const testers = members.filter((m) => m.manual);
+  const key = `${session.code}|${testers.map((m) => m.id).join(',')}`;
+  if (key === gridKey) return;
+  gridKey = key;
+  // the storyteller frame gets a copy of this device's grimoire session
+  try { localStorage.setItem('dev:st:botc-session', JSON.stringify(session)); } catch {}
+  const q = (o) => new URLSearchParams(o).toString();
+  const frame = (label, src, cls = '') => `<figure class="dev-f ${cls}"><figcaption>${esc(label)}<a href="${esc(src)}" target="_blank" title="Open on its own">↗</a></figcaption><iframe src="${esc(src)}" title="${esc(label)}"></iframe></figure>`;
+  app.innerHTML = `<header class="dev-bar">
+      <b>🧪 Test mode · ${esc(session.code)}</b>
+      <span class="muted small">${testers.length} test player${testers.length === 1 ? '' : 's'} · each frame is its own device</span>
+      <span class="grow"></span>
+      <label class="small">Size <select id="dev-zoom">${[100, 85, 70, 55].map((z) => `<option value="${z}" ${String(z) === (store.get('dev-zoom') || '85') ? 'selected' : ''}>${z}%</option>`).join('')}</select></label>
+      <button class="btn small" data-dev="add">+ Test player</button>
+      <button class="btn small" data-dev="reload">↻ Reload all</button>
+      <a class="btn small" href="${BASE}">✕ Close test mode</a>
+    </header>
+    <div class="dev-grid" id="dev-grid" style="zoom:${(Number(store.get('dev-zoom')) || 85) / 100}">
+      ${frame('Storyteller', `${BASE}?${q({ dev: 'st' })}`, 'wide')}
+      ${frame('Table view', `${BASE}?${q({ dev: 'tv', code: session.code, watch: '1' })}`, 'wide')}
+      ${testers.map((m, i) => frame(m.name, `${BASE}?${q({ dev: `p${i}`, code: session.code, devplayer: m.id, devtoken: session.token })}`)).join('')}
+    </div>`;
+}
+document.addEventListener('change', (e) => {
+  if (e.target.id !== 'dev-zoom') return;
+  store.set('dev-zoom', e.target.value);
+  $('#dev-grid').style.zoom = Number(e.target.value) / 100;
+});
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-dev]');
+  if (!b) return;
+  if (b.dataset.dev === 'reload') return document.querySelectorAll('.dev-grid iframe').forEach((f) => (f.src = f.src));
+  if (b.dataset.dev === 'add') {
+    const members = (await call('botc:roomPlayers')) || [];
+    await addTestPlayers(members.filter((m) => m.manual).length + 1);
+    gridKey = '';
+    renderDevGrid();
+  }
+});
+// make sure there are n names added by hand ("Test 1"…), seated while setting up
+async function addTestPlayers(n) {
+  let members = (await call('botc:roomPlayers')) || [];
+  for (let i = 1; members.filter((m) => m.manual).length < n && i < 40; i++) {
+    if (!members.some((m) => m.name.toLowerCase() === `test ${i}`)) await call('botc:addName', { name: `Test ${i}` });
+    members = (await call('botc:roomPlayers')) || [];
+  }
+  if (st?.phase === 'setup') {
+    const seated = st.seats.map((s) => s.playerId);
+    const add = members.filter((m) => m.manual && !seated.includes(m.id)).map((m) => m.id);
+    if (add.length) await call('botc:seats', { ids: [...seated, ...add].slice(0, 20) });
+  }
+}
+function openTestMode() {
+  const manual = roomPlayers.filter((m) => m.manual).length;
+  openSheet(
+    `<h2 class="h">🧪 Test mode</h2>
+     <p>Play every seat yourself on this screen: the grimoire, the table view and one phone per test player, side by side. Each frame is its own device, so you can hold a token, chat between players and run the nights.</p>
+     <p class="hint">Test players are names added by hand ("Test 1", "Test 2"…). They're seated while you set up. Best on a laptop or big screen.</p>
+     <h3 class="h">How many players?</h3>
+     <div class="row">${[5, 6, 7, 8, 9, 10, 12, 15].map((n) => `<button class="chip ${n === Math.max(7, manual) ? 'on' : ''}" data-n="${n}">${n}</button>`).join('')}</div>`,
+    async (e) => {
+      const b = e.target.closest('[data-n]');
+      if (!b) return;
+      b.textContent = '…';
+      await addTestPlayers(Number(b.dataset.n));
+      closeSheet();
+      location.href = `${BASE}?devgrid=1`;
+    },
+    'narrow'
+  );
 }
 
 async function loadRoomPlayers() {
@@ -1029,6 +1131,7 @@ function openSettings() {
        <div class="share"><img src="qr/${esc(roomCode())}.png" alt="QR code to join" class="share-qr">
          <div><p>Players join with code <b class="big-code">${esc(roomCode())}</b><br><span class="small muted">${esc(joinUrl())}</span></p>
          <p class="small">Storyteller code: <b>${esc(stCode || '—')}</b><br><span class="muted">To open the grimoire on a second device too. Keep it secret.</span></p></div></div>
+       ${DEV ? '' : `<button class="btn wide" data-x="test">🧪 Test mode: play all seats on this screen</button>`}
        <button class="btn wide" data-x="logout">⏏ Leave the grimoire on this device</button>`
       : mode === 'player'
         ? `<button class="btn wide" data-x="stlogin">🔑 I'm the storyteller</button><button class="btn wide" data-x="leave">✕ Leave this room</button>`
@@ -1050,6 +1153,11 @@ function openSettings() {
       if (b.dataset.min) {
         await call('botc:timer', { action: 'minutes', minutes: Number(b.dataset.min) });
         return openSettings();
+      }
+      if (b.dataset.x === 'test') {
+        closeSheet();
+        await loadRoomPlayers();
+        return openTestMode();
       }
       if (b.dataset.x === 'logout') {
         closeSheet();
