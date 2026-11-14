@@ -84,7 +84,6 @@ const NL = {
   'How many players?': 'Hoeveel spelers?',
   'Tap a player to note what you think they are: good, evil or a character. Only you can see this.': 'Tik op een speler om te noteren wat je denkt: goed, kwaad of een personage. Alleen jij ziet dit.',
   '😇 Good': '😇 Goed', '😈 Evil': '😈 Kwaad', '? Not sure': '? Weet niet', Clear: 'Wissen', '👻 vote': '👻 stem',
-  'Before the game': 'Voor het spel', 'After the game': 'Na het spel',
   'Who dies tonight?': 'Wie sterft er vannacht?', 'Nobody dies': 'Niemand sterft', 'Someone else…': 'Iemand anders…', 'Who dies instead?': 'Wie sterft er in plaats daarvan?',
   'Nothing in the grimoire stops this kill.': 'Niets in de grimoire houdt deze moord tegen.', 'Alerts on phones': 'Meldingen op telefoons',
   '🔔 Send a test alert to every player': '🔔 Stuur een testmelding naar alle spelers', '🔔 Test alert': '🔔 Testmelding', '🔔 No alerts on': '🔔 Geen meldingen aan', Reset: 'Reset', 'Start or pause': 'Start of pauze', 'One minute more': 'Eén minuut erbij',

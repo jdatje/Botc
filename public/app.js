@@ -693,15 +693,9 @@ function updateThread(scrollDown) {
   if (!box) return;
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
   const mine = meChatId();
-  let lastPh = null;
-  const phName = (ph) => (/^n\d+$/.test(ph) ? (ph === 'n1' ? 'First night' : `Night ${ph.slice(1)}`) : /^d\d+$/.test(ph) ? `Day ${ph.slice(1)}` : ph === 'setup' ? 'Before the game' : 'After the game');
   box.innerHTML =
     (chats[thread] || [])
-      .map((m) => {
-        const sep = m.ph && m.ph !== lastPh ? `<div class="msg-sep"><span>${m.ph[0] === 'n' ? '🌙' : m.ph[0] === 'd' ? '☀️' : '🕯️'} ${phName(m.ph)}</span></div>` : '';
-        if (m.ph) lastPh = m.ph;
-        return `${sep}<div class="msg ${m.from === mine ? 'me' : ''}"><span>${esc(m.text)}</span><time>${new Date(m.t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>`;
-      })
+      .map((m) => `<div class="msg ${m.from === mine ? 'me' : ''}"><span>${esc(m.text)}</span><time>${new Date(m.t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>`)
       .join('') || `<p class="muted center small">Say something…</p>`;
   if (scrollDown || atBottom) box.scrollTop = box.scrollHeight;
   markRead(thread);
