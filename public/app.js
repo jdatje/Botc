@@ -347,6 +347,7 @@ function updateNight() {
   let el = $('#nightscreen');
   if (!on) {
     el?.remove();
+    $('#nightback')?.remove();
     nightPrompt = null;
     nightHidden = false;
     return;
@@ -358,7 +359,23 @@ function updateNight() {
     buzz([300, 120, 300]);
   }
   if (!p) nightPrompt = null;
-  if (nightHidden && !p) return el?.remove();
+  if (nightHidden && !p) {
+    el?.remove();
+    if (!$('#nightback')) {
+      const b = document.createElement('button');
+      b.id = 'nightback';
+      b.className = 'nightback';
+      b.textContent = '🌙 Back to the night screen';
+      b.addEventListener('click', () => {
+        nightHidden = false;
+        nightKey = '';
+        updateNight();
+      });
+      document.body.append(b);
+    }
+    return;
+  }
+  $('#nightback')?.remove();
   const key = `${me.night}|${p ? p.id : ''}|${nightPick.join(',')}`;
   if (el && key === nightKey) return;
   nightKey = key;
@@ -377,8 +394,11 @@ function nightPromptHtml(p) {
   if (p.kind === 'info') {
     return `<div class="ns-card">${head}
       ${p.number !== null ? `<div class="ns-number">${p.number}</div>` : ''}
-      ${p.roles.length ? `<div class="ns-tokens">${p.roles.map((r) => token(r, { size: p.roles.length > 2 ? 'lg' : 'huge' })).join('')}</div>` : ''}
-      ${p.seats.length ? `<div class="ns-names">${p.seats.map((x) => `<span>${esc(x.name)}</span>`).join('')}</div>` : ''}
+      ${(() => {
+        const roles = p.roles.length ? `${p.rolesLabel ? `<p class="ns-label">${esc(p.rolesLabel)}</p>` : ''}<div class="ns-tokens">${p.roles.map((r) => token(r, { size: p.roles.length > 2 ? 'lg' : 'huge' })).join('')}</div>` : '';
+        const seats = p.seats.length ? `${p.seatsLabel ? `<p class="ns-label">${esc(p.seatsLabel)}</p>` : ''}<div class="ns-names ${p.seatsLabel ? 'big' : ''}">${p.seats.map((x) => `<span>${esc(x.name)}</span>`).join('')}</div>` : '';
+        return p.seatsLabel ? seats + roles : roles + seats;
+      })()}
       ${p.grim ? `<div class="ns-grim">${p.grim.map((x) => `<div class="${x.dead ? 'dead' : ''}">${token(x.role, { size: 'sm', align: x.align, label: false })}<span><b>${esc(x.name)}</b> ${esc(x.role?.name || '')}${x.shown ? ` (sees ${esc(x.shown.name)})` : ''}${x.align === 'evil' && !['minion', 'demon'].includes(x.role?.team) ? ' · evil' : ''}${x.reminders.length ? `<small>${x.reminders.map(esc).join(', ')}</small>` : ''}</span></div>`).join('')}</div>` : ''}
       <button class="btn primary big wide" data-n="ok">Got it: back to sleep</button></div>`;
   }
@@ -1155,7 +1175,7 @@ function openCompose(step, sugs, idx) {
           if (fresh[idx]) return openCompose(step, fresh, idx);
           return toast('No other suggestion for this one');
         } else if (d.send) {
-          const res = await call('botc:prompt', { seatIds: c.to, step: step.id, kind: c.kind, text: c.text, count: c.count, target: c.target, roles: c.roles, seats: c.seats, number: c.number, grim: c.grim });
+          const res = await call('botc:prompt', { seatIds: c.to, step: step.id, kind: c.kind, text: c.text, count: c.count, target: c.target, roles: c.roles, seats: c.seats, number: c.number, grim: c.grim, seatsLabel: c.seatsLabel, rolesLabel: c.rolesLabel });
           if (!res?.ok) return toast(res?.error || 'Could not send');
           toast(`📱 Sent to ${c.to.map(seatName).join(', ')}`);
           if (sugs.length > 1 && idx + 1 < sugs.length) return openCompose(step, sugs, idx + 1);
@@ -1290,7 +1310,7 @@ function openSettings() {
       ? `<h3 class="h">Night & day rules</h3>
        <label class="toggle"><input type="checkbox" checked disabled> Player chats locked at night (always)</label>
        <label class="toggle"><input type="checkbox" data-rule="lockStChat" ${st.rules.lockStChat ? 'checked' : ''}> Also lock the storyteller chat at night</label>
-       <label class="toggle"><input type="checkbox" data-rule="autoTimer" ${st.rules.autoTimer ? 'checked' : ''}> Start the day timer at dawn</label>
+
        <div class="row"><span>Day length</span>${[3, 5, 8, 10, 12, 15].map((m) => `<button class="chip ${st.timer.minutes === m ? 'on' : ''}" data-min="${m}">${m} min</button>`).join('')}</div>
        <h3 class="h">This game</h3>
        <div class="share"><img src="qr/${esc(roomCode())}.png" alt="QR code to join" class="share-qr">
@@ -1646,7 +1666,7 @@ function timeUp() {
   const el = document.createElement('div');
   el.className = 'time-up';
   el.setAttribute('role', 'alertdialog');
-  el.innerHTML = `<div class="time-up-in"><div class="time-up-icon" aria-hidden="true">🔔</div><h2 class="h">Time's up</h2><p>Return to the town square</p><button class="btn primary big" data-timeup="ok">On my way</button></div>`;
+  el.innerHTML = `<div class="time-up-in"><div class="time-up-icon" aria-hidden="true">🔔</div><h2 class="h">Time's up</h2><p>Return to the town square</p><button class="btn primary big" data-timeup="ok">I'm back</button></div>`;
   document.body.append(el);
   el.addEventListener('click', (e) => e.target.closest('[data-timeup]') && el.remove());
 }

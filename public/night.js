@@ -99,7 +99,8 @@ function fromText(text) {
   return { kind: 'info', text: '' };
 }
 
-const DEFAULTS = { roles: [], seats: [], number: null, count: 1, target: 'player', grim: false, off: '', falseInfo: false, note: '', text: '' };
+const DEFAULTS = { roles: [], seats: [], number: null, count: 1, target: 'player', grim: false, off: '', falseInfo: false, note: '', text: '', seatsLabel: '', rolesLabel: '' };
+const AUTO_MARK = { poisoner: 'Poisoned', monk: 'Safe', butler: 'Master' }; // the server adds these itself
 // one suggestion per acting seat (Minion info: one for all Minions)
 export function suggest(step, ctx) {
   return raw(step, ctx).map((x) => ({ ...DEFAULTS, ...x }));
@@ -109,12 +110,12 @@ function raw(step, ctx) {
     const demon = ctx.seats.find(isDemon);
     const minions = ctx.seats.filter((s) => s.role?.team === 'minion');
     const lines = minions.length > 1 ? ` Your fellow Minions: ${minions.map((m) => m.name).join(', ')}.` : '';
-    return [{ to: minions.map((m) => m.id), kind: 'info', text: `This is the Demon.${lines}`, seats: demon ? [demon.id] : [] }];
+    return [{ to: minions.map((m) => m.id), kind: 'info', text: `You are a Minion.${lines}`, seats: demon ? [demon.id] : [], seatsLabel: 'Your Demon' }];
   }
   if (step.id === 'demoninfo') {
     const demon = ctx.seats.find(isDemon);
     const minions = ctx.seats.filter((s) => s.role?.team === 'minion');
-    return [{ to: demon ? [demon.id] : [], kind: 'info', text: 'These are your Minions. These 3 characters are not in play: bluff as them.', seats: minions.map((m) => m.id), roles: ctx.bluffs.map((r) => r.id) }];
+    return [{ to: demon ? [demon.id] : [], kind: 'info', text: 'You are the Demon', seats: minions.map((m) => m.id), seatsLabel: minions.length === 1 ? 'Your Minion' : 'Your Minions', roles: ctx.bluffs.map((r) => r.id), rolesLabel: 'Not in play: you can bluff as these' }];
   }
   if (step.special) return [];
   return step.seats.map((ss) => {
@@ -148,6 +149,11 @@ export function followUps(p, ctx) {
   if (r?.team === 'demon' && chosen[0] && off) out.push({ label: `The Demon is ${off}: nobody dies`, note: true });
   if (r?.team === 'demon' && chosen[0] && chosen[0].id === p.seatId) out.push({ label: 'The Demon chose themselves: pass it on', note: true });
   const rem = r?.reminders?.find((x) => !/dead|died/i.test(x)) || (r?.team === 'demon' ? null : r?.reminders?.[0]);
-  if (rem && p.step !== 'fortuneteller' && p.step !== 'ravenkeeper') for (const c of chosen) out.push({ label: `◉ ${rem} → ${c.name}`, reminder: { seatId: c.id, role: r.id, label: rem } });
+  if (rem && p.step !== 'fortuneteller' && p.step !== 'ravenkeeper')
+    for (const c of chosen) {
+      if (c.reminders?.some((x) => x.label === rem)) out.push({ label: `✓ ${rem} on ${c.name} in the Grimoire`, note: true });
+      else if (AUTO_MARK[p.step] && off) out.push({ label: `${r.name} is ${off}: no ${rem}`, note: true });
+      else out.push({ label: `◉ ${rem} → ${c.name}`, reminder: { seatId: c.id, role: r.id, label: rem } });
+    }
   return out;
 }
