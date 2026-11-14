@@ -407,3 +407,19 @@ textarea.short { min-height: 140px; }
 .alerts-card ol { padding-left: 20px; line-height: 1.5; }
 .alerts-on { text-align: center; color: var(--ink2); margin: 12px 0; }
 .linkish { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; font: inherit; cursor: pointer; }
+
+/* no text selection or image callout on your token (long press = reveal) */
+.hold *, .tk img, .tk { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.tk img { -webkit-user-drag: none; pointer-events: none; }
+.mine-back { width: var(--tk, 64px); height: var(--tk, 64px); }
+.mine-back::after { font-size: calc(var(--tk, 64px) * .45); }
+.square[data-shape='table']::before { inset: var(--tbl-y, 25%) var(--tbl-x, 12%); border-radius: 22px; }
+.hist { margin: 8px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg2); }
+.hist summary { cursor: pointer; font-weight: 700; }
+.hist ul { margin: 8px 0 2px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.hist { margin: 8px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg2); }
+.hist summary { cursor: pointer; font-weight: 700; }
+.hist ul { margin: 8px 0 2px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.square[data-shape='table'] .square-mid { width: calc(100% - 2 * var(--tbl-x, 12%) - 12px); }
+.square[data-shape='table'] .square-mid .muted { font-size: 12px; }
+.lang-seg { margin: 6px 0 14px; }

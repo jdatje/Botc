@@ -7,6 +7,7 @@
 import { RULES } from './rules.js';
 import { setupRules, fmtNeed, MULTI, NOT_DEALT, TEAMS4 } from './setup.js';
 import { suggest, followUps, offReason } from './night.js';
+import { setupI18n, LANGS, getLang } from './i18n.js';
 
 // works at the site root and under a sub path (e.g. /botc/)
 const BASE = location.pathname.replace(/[^/]*$/, '');
@@ -20,6 +21,15 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(pre + k, v); } catch {} },
   del: (k) => { try { localStorage.removeItem(pre + k); } catch {} },
 };
+setupI18n(store);
+const langPicker = () => `<div class="seg lang-seg">${Object.entries(LANGS).map(([k, l]) => `<button class="${getLang() === k ? 'on' : ''}" data-lang="${k}">${k === 'nl' ? '🇳🇱' : '🇬🇧'} ${l}</button>`).join('')}</div>`;
+// switching language redraws everything from scratch
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-lang]');
+  if (!b || b.dataset.lang === getLang()) return;
+  store.set('botc-lang', b.dataset.lang);
+  location.reload();
+});
 const call = (ev, p = {}) => new Promise((res) => socket.timeout(15000).emit(ev, p, (err, r) => res(err ? null : r)));
 const $ = (s, el = document) => el.querySelector(s);
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -139,7 +149,7 @@ async function checkPush() {
     const sub = await reg.pushManager.getSubscription();
     pushState = Notification.permission === 'denied' ? 'denied' : sub && Notification.permission === 'granted' ? 'on' : 'off';
     // this game needs to know this phone (a new game, or the server forgot it)
-    if (sub && pushState === 'on' && mode === 'player') call('push:subscribe', { sub: sub.toJSON() });
+    if (sub && pushState === 'on' && mode === 'player') call('push:subscribe', { sub: sub.toJSON(), lang: getLang() });
   } catch (err) {
     console.warn('push', err);
   }
@@ -155,7 +165,7 @@ async function pushOn() {
     const reg = await navigator.serviceWorker.ready;
     pushKey ||= (await (await fetch('push/key', { cache: 'no-store' })).json()).key;
     const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(pushKey) }));
-    const res = await call('push:subscribe', { sub: sub.toJSON() });
+    const res = await call('push:subscribe', { sub: sub.toJSON(), lang: getLang() });
     pushState = res?.ok ? 'on' : 'off';
     toast(res?.ok ? '🔔 Alerts on' : 'Could not turn on alerts');
   } catch (err) {
@@ -509,7 +519,7 @@ async function onNightClick(e) {
 // ---------- Player ----------
 const P_TABS = [
   ['token', '🎭', 'Token'],
-  ['square', '⭕', 'Town'],
+  ['square', '🏘️', 'Town'],
   ['chats', '💬', 'Chats'],
   ['notes', '📝', 'Notes'],
   ['script', '📜', 'Script'],
@@ -553,7 +563,7 @@ const P_BODY = {
           const self = s.playerId === myId;
           const full = me.reveal ? s : null;
           return `<button class="seat ${s.dead ? 'dead' : ''} ${self ? 'self' : ''}" data-act="guess" data-seat="${s.id}">
-            ${full?.role ? token(full.shown && full.shown.id !== full.role.id ? full.role : full.role, { align: full.align, label: true }) : self ? token(me.me.role, { align: me.me.align, cls: 'mine' }) : token(r, { label: Boolean(r), cls: r ? 'guess' : '' })}
+            ${full?.role ? token(full.shown && full.shown.id !== full.role.id ? full.role : full.role, { align: full.align, label: true }) : self ? '<span class="tk tk-back mine-back"></span>' : token(r, { label: Boolean(r), cls: r ? 'guess' : '' })}
             ${s.dead ? `<span class="shroud" title="dead"></span>` : ''}
             ${s.dead && s.ghost ? `<span class="ghost" title="ghost vote">vote</span>` : ''}
             <span class="seat-name">${esc(s.name)}${self ? ' (you)' : ''}</span>
@@ -602,17 +612,37 @@ function rulesHtml() {
   return `<h2 class="h">How it works</h2>${RULES.map((r, i) => `<details class="rule" ${i === 0 ? 'open' : ''}><summary>${esc(r.title)}</summary>${r.body}</details>`).join('')}${ccc()}`;
 }
 
+// what happened on the phones, night by night (storyteller any time; everyone at the end)
+function historyHtml(list, openLast) {
+  if (!list?.length) return '';
+  const nights = [...new Set(list.map((h) => h.night))];
+  return `<h3 class="team-h">What happened at night</h3>${nights
+    .map(
+      (n, i) => `<details class="hist" ${openLast && i === nights.length - 1 ? 'open' : ''}><summary>${n <= 1 ? 'First night' : `Night ${n}`}</summary><ul>${list
+        .filter((h) => h.night === n)
+        .map((h) => {
+          const shown = [h.number !== null && h.number !== undefined ? `<b>${h.number}</b>` : '', h.seats.length ? esc(h.seats.join(', ')) : '', h.roles.length ? `<i>${esc(h.roles.join(', '))}</i>` : ''].filter(Boolean).join(' · ');
+          return `<li><b>${esc(h.step)}</b> <span class="muted">(${esc(h.who)})</span>: ${h.kind === 'choose' ? `chose <b>${esc(h.chose.join(', ') || 'nothing')}</b>` : `saw “${esc(h.text)}”${shown ? ` ${shown}` : ''}`}</li>`;
+        })
+        .join('')}</ul></details>`
+    )
+    .join('')}`;
+}
+
 function revealHtml(v) {
   return `<h3 class="team-h">The grimoire</h3>${v.seats
     .map((s) => `<div class="role-row">${token(s.role, { align: s.align, label: false, size: 'sm' })}<div><b>${esc(s.name)}</b> — ${esc(s.role?.name || '?')}${s.shown && s.shown.id !== s.role?.id ? ` <span class="muted">(thought: ${esc(s.shown.name)})</span>` : ''} <span class="align ${s.align}">${s.align}</span>${s.dead ? ' ☠' : ''}</div></div>`)
-    .join('')}`;
+    .join('')}${historyHtml(v.history, false)}`;
 }
 
 // ---------- Chats ----------
 function chatPartners() {
   const v = view();
   const others = (v.seats || []).filter((s) => s.playerId && s.playerId !== myId).map((s) => ({ id: s.playerId, name: s.name, dead: s.dead }));
-  return mode === 'st' ? others : [{ id: 'st', name: 'Storyteller', st: true }, ...others];
+  const list = mode === 'st' ? others : [{ id: 'st', name: 'Storyteller', st: true }, ...others];
+  // whoever wrote last on top; chats without messages keep the table order below
+  const lastT = (id) => (chats[id] || []).at(-1)?.t || 0;
+  return list.map((p, i) => ({ p, i, t: lastT(p.id) })).sort((a, b) => b.t - a.t || a.i - b.i).map((x) => x.p);
 }
 function locked(partner) {
   const v = view();
@@ -665,6 +695,7 @@ const ST_TABS = [
   ['night', '🌙', 'Night'],
   ['chats', '💬', 'Chats'],
   ['notes', '📝', 'Notes'],
+  ['script', '📜', 'Script'],
 ];
 function stHeader() {
   const v = st;
@@ -762,7 +793,7 @@ const ST_BODY = {
   },
   night() {
     const v = st;
-    if (!v.nightOrder) return `<div class="center"><p class="h">🌙</p><p class="muted">The night order shows up here at night, with only the characters in play.</p></div>`;
+    if (!v.nightOrder) return `<div class="center"><p class="h">🌙</p><p class="muted">The night order shows up here at night, with only the characters in play.</p></div>${historyHtml(v.history, true)}`;
     const list = v.nightOrder.list;
     const ctx = nightCtx();
     return `<h2 class="h">${v.nightOrder.first ? 'First night' : `Night ${v.night}`}</h2><p class="hint">📱 wakes that player on their phone; you can change what's sent first. Or do it in person and tap the step when it's done.</p>
@@ -789,8 +820,9 @@ const ST_BODY = {
             ${canWake ? `<button class="wake-btn" data-act="wake" data-step="${esc(it.id)}" aria-label="Wake on their phone">📱</button>` : ''}
           </li>`;
         })
-        .join('')}</ol>`;
+        .join('')}</ol>${historyHtml(v.history.filter((h) => h.night < v.night), false)}`;
   },
+  script: () => scriptHtml(st.script),
   chats: () => chatsBody(),
   notes() {
     return `<label class="h" for="st-notes">Storyteller notes</label>
@@ -965,6 +997,7 @@ function renderHome() {
     <div class="tk-back huge"></div>
     <h1 class="h home-title">Blood on the Clocktower</h1>
     <p class="muted">For a game in person, around one table: your phone is your token, notes and chats.</p>
+    ${langPicker()}
     <form class="home-card" id="join-form">
       <h2 class="h">Join a game</h2>
       <label>Game code<input id="join-code" maxlength="6" autocomplete="off" autocapitalize="characters" value="${esc(code)}" placeholder="ABCDE" required></label>
@@ -1013,10 +1046,34 @@ function layoutSquares() {
     if (!n || !w) return;
     const size = Math.max(44, Math.min(n <= 6 ? 0.24 : n <= 9 ? 0.2 : n <= 12 ? 0.17 : 0.14, 0.3) * Math.min(w, h) * (w > h ? 1.15 : 1));
     sq.style.setProperty('--tk', `${Math.min(size, 150)}px`);
+    const shape = view()?.layout === 'table' ? 'table' : 'circle';
+    sq.dataset.shape = shape;
+    if (shape === 'circle') {
+      seats.forEach((el, i) => {
+        const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
+        el.style.left = `${50 + 41 * Math.cos(a)}%`;
+        el.style.top = `${50 + 40 * Math.sin(a)}%`;
+      });
+      return;
+    }
+    // a long table along the longer side of the screen; seats spread evenly around its edge, clockwise from the top
+    const wide = w >= h;
+    const A = (wide ? 0.42 : 0.3) * w; // half width in px
+    const B = (wide ? 0.27 : 0.42) * h; // half height in px
+    sq.style.setProperty('--tbl-x', `${((0.5 - (A / w) * 0.62) * 100).toFixed(1)}%`);
+    sq.style.setProperty('--tbl-y', `${((0.5 - (B / h) * 0.62) * 100).toFixed(1)}%`);
+    const P = 4 * (A + B);
     seats.forEach((el, i) => {
-      const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
-      el.style.left = `${50 + 41 * Math.cos(a)}%`;
-      el.style.top = `${50 + 40 * Math.sin(a)}%`;
+      let d = (P * i) / n + A; // start at the middle of the top edge... shifted so seat 0 is top-left of centre
+      d = (d - A + P) % P;
+      let x, y;
+      if (d < A) [x, y] = [d, -B];
+      else if ((d -= A) < 2 * B) [x, y] = [A, -B + d];
+      else if ((d -= 2 * B) < 2 * A) [x, y] = [A - d, B];
+      else if ((d -= 2 * A) < 2 * B) [x, y] = [-A, B - d];
+      else [x, y] = [-A + (d - 2 * B), -B];
+      el.style.left = `${50 + (x / w) * 100}%`;
+      el.style.top = `${50 + (y / h) * 100}%`;
     });
   });
 }
@@ -1145,7 +1202,9 @@ function openSeat(seatId) {
        <button class="btn" data-a="role">🎭 Change character</button>
        <button class="btn" data-a="shown">👁 Change what they see</button>
        <button class="btn" data-a="align">⚖️ Make ${s.align === 'good' ? 'evil' : 'good'}</button>
-       <button class="btn" data-a="showme">🃏 Show "You are"</button>
+       <button class="btn" data-a="showme">🃏 Show "You are"${s.shown && s.reminders.some((r) => r.label === 'Is the Demon') ? `: ${esc(s.role?.name || '')}` : ''}</button>
+       <button class="btn" data-a="left">◀ Move seat</button>
+       <button class="btn" data-a="right">Move seat ▶</button>
      </div>
      <h3 class="h">Reminders</h3>
      <div class="chips">${s.reminders.map((r, i) => `<button class="chip on" data-rm="${i}">${esc(r.label)} ×</button>`).join('') || '<span class="muted small">none</span>'}</div>
@@ -1158,6 +1217,16 @@ function openSeat(seatId) {
       if (b.dataset.a === 'dead') await patch({ dead: !s.dead });
       if (b.dataset.a === 'ghost') await patch({ ghost: !s.ghost });
       if (b.dataset.a === 'align') await patch({ align: s.align === 'good' ? 'evil' : 'good' });
+      if (b.dataset.a === 'left' || b.dataset.a === 'right') {
+        await call('botc:moveSeat', { seatId, dir: b.dataset.a === 'left' ? -1 : 1 });
+        return toast(b.dataset.a === 'left' ? '◀ Moved' : 'Moved ▶');
+      }
+      if (b.dataset.a === 'showme' && s.shown && s.reminders.some((r) => r.label === 'Is the Demon')) {
+        // the Scarlet Woman learns she is the Demon now
+        await patch({ shown: null });
+        closeSheet();
+        return showCard('You are', [s.role], s.align);
+      }
       if (b.dataset.a === 'showme') {
         closeSheet();
         return showCard('You are', [s.shown || s.role], s.shown ? undefined : s.align);
@@ -1386,13 +1455,16 @@ function openSettings() {
        <div class="share"><img src="qr/${esc(roomCode())}.png" alt="QR code to join" class="share-qr">
          <div><p>Players join with code <b class="big-code">${esc(roomCode())}</b><br><span class="small muted">${esc(joinUrl())}</span></p>
          <p class="small">Storyteller code: <b>${esc(stCode || '—')}</b><br><span class="muted">To open the grimoire on a second device too. Keep it secret.</span></p></div></div>
+       <h3 class="sub">Town square</h3>
+       <div class="seg"><button class="${st.layout !== 'table' ? 'on' : ''}" data-x="layout-circle">⭕ Circle</button><button class="${st.layout === 'table' ? 'on' : ''}" data-x="layout-table">▭ Long table</button></div>
+       <p class="hint">Match the real table. To change the order, tap a player in the Grimoire and use ◀ ▶.</p>
        ${DEV ? '' : `<button class="btn wide" data-x="test">🧪 Test mode: play all seats on this screen</button>`}
        <button class="btn wide" data-x="logout">⏏ Leave the grimoire on this device</button>`
       : mode === 'player'
         ? `<button class="btn wide" data-x="stlogin">🔑 I'm the storyteller</button><button class="btn wide" data-x="leave">✕ Leave this room</button>`
         : '';
   openSheet(
-    `<h2 class="h">Style</h2><p class="hint">Only for this device${mode === 'st' ? ' (storyteller)' : mode === 'public' ? ' (table view)' : ''}.</p>
+    `<h2 class="h">Language</h2>${langPicker()}<h2 class="h">Style</h2><p class="hint">Only for this device${mode === 'st' ? ' (storyteller)' : mode === 'public' ? ' (table view)' : ''}.</p>
      <div class="styles">${STYLES.map((s) => `<button class="style-card ${s.id === cur ? 'on' : ''}" data-style="${s.id}"><span class="sw" data-sw="${s.id}"><i></i><i></i><i></i></span><b>${s.label}</b><small>${s.desc}</small></button>`).join('')}</div>
      ${stPart}
      ${boardpassUrl ? `<h3 class="h">Boardpass</h3>${boardpassLinks('stack')}<p class="hint">Your seat stays in this game; come back any time.</p>` : ''}`,
@@ -1408,6 +1480,11 @@ function openSettings() {
       if (b.dataset.min) {
         await call('botc:timer', { action: 'minutes', minutes: Number(b.dataset.min) });
         return openSettings();
+      }
+      if (b.dataset.x === 'layout-circle' || b.dataset.x === 'layout-table') {
+        await call('botc:layout', { shape: b.dataset.x.slice(7) });
+        b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+        return;
       }
       if (b.dataset.x === 'test') {
         closeSheet();

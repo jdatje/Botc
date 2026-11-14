@@ -36,4 +36,9 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 - Web Push (`lib/push.js`, `public/sw.js`, `manifest.webmanifest`): night prompts (decoys too, same text), chat
   messages, 30 s / time's up. Only sent when none of the player's pages is visible (`push:visible`). iPhone needs the
   home-screen app (iOS 16.4+) → own storage, so players join again there. VAPID keys from env or DATA_DIR/vapid.json.
+- Dutch: `public/i18n.js` swaps on-screen English texts per device (`botc-lang`; exact map + patterns via a
+  MutationObserver). New UI text → add its Dutch there. Character texts stay English (official NL behind a login).
+- Scarlet Woman: when the Demon dies with 5+ alive she becomes the Demon in the grimoire (`shown` stays Scarlet
+  Woman until her night info or the seat sheet's "Show You are"). `g.history` = phone-night log (ST always, all at reveal).
+- Town layout: `g.layout` circle | table; `botc:moveSeat` any phase.
 - Test locally: `BASE_PATH=/botc PORT=4100 DATA_DIR=/tmp/x node server.js`.
