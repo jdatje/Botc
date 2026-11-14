@@ -6,6 +6,7 @@
 // Character data and icons: The Pandemonium Institute's toolmaker resources.
 import { RULES } from './rules.js';
 import { setupRules, fmtNeed, MULTI, NOT_DEALT, TEAMS4 } from './setup.js';
+import { suggest, followUps, offReason } from './night.js';
 
 // works at the site root and under a sub path (e.g. /botc/)
 const BASE = location.pathname.replace(/[^/]*$/, '');
@@ -294,6 +295,7 @@ const unreadTotal = () => Object.keys(chats).reduce((n, k) => n + unread(k), 0);
 let lastBody = '';
 function render(force) {
   if (DEVGRID) return renderDevGrid();
+  updateNight();
   const app = $('#app');
   app.className = `mode-${mode} phase-${view()?.phase || 'none'}`;
   if (mode === 'loading') return (app.innerHTML = '<div class="center muted">Connecting…</div>');
@@ -331,6 +333,88 @@ function render(force) {
     $('#nav').innerHTML = $('#nav').innerHTML.replace(/<b class="badge">\d+<\/b>/, unreadTotal() ? `<b class="badge">${unreadTotal()}</b>` : '');
   }
   layoutSquares();
+}
+
+// ---------- Night on phones: the player's side ----------
+// At night every phone shows the same dark screen; it buzzes and asks when it's your turn.
+let nightPrompt = null; // id of the prompt on screen
+let nightPick = [];
+let nightHidden = false; // "look at my token" until the next prompt
+let nightKey = '';
+function updateNight() {
+  const p = mode === 'player' && me?.phase === 'night' && me.me ? me.prompt : undefined;
+  const on = mode === 'player' && me?.phase === 'night' && me.me;
+  let el = $('#nightscreen');
+  if (!on) {
+    el?.remove();
+    nightPrompt = null;
+    nightHidden = false;
+    return;
+  }
+  if (p && p.id !== nightPrompt) {
+    nightPrompt = p.id;
+    nightPick = [];
+    nightHidden = false;
+    buzz([300, 120, 300]);
+  }
+  if (!p) nightPrompt = null;
+  if (nightHidden && !p) return el?.remove();
+  const key = `${me.night}|${p ? p.id : ''}|${nightPick.join(',')}`;
+  if (el && key === nightKey) return;
+  nightKey = key;
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'nightscreen';
+    el.className = 'nightscreen';
+    document.body.append(el);
+    el.addEventListener('click', onNightClick);
+  }
+  el.innerHTML = p ? nightPromptHtml(p) : `<div class="ns-sleep"><div class="ns-moon">🌙</div><h2 class="h">Night ${me.night}</h2><p>Eyes closed. Your phone buzzes when it's your turn.</p>
+      <button class="btn small ns-peek" data-n="hide">Look at my token</button></div>`;
+}
+function nightPromptHtml(p) {
+  const head = `<p class="ns-wake">Your turn</p><h2 class="h ns-text">${esc(p.text || (p.kind === 'info' ? 'You learn' : 'Choose'))}</h2>`;
+  if (p.kind === 'info') {
+    return `<div class="ns-card">${head}
+      ${p.number !== null ? `<div class="ns-number">${p.number}</div>` : ''}
+      ${p.roles.length ? `<div class="ns-tokens">${p.roles.map((r) => token(r, { size: p.roles.length > 2 ? 'lg' : 'huge' })).join('')}</div>` : ''}
+      ${p.seats.length ? `<div class="ns-names">${p.seats.map((x) => `<span>${esc(x.name)}</span>`).join('')}</div>` : ''}
+      ${p.grim ? `<div class="ns-grim">${p.grim.map((x) => `<div class="${x.dead ? 'dead' : ''}">${token(x.role, { size: 'sm', align: x.align, label: false })}<span><b>${esc(x.name)}</b> ${esc(x.role?.name || '')}${x.shown ? ` (sees ${esc(x.shown.name)})` : ''}${x.align === 'evil' && !['minion', 'demon'].includes(x.role?.team) ? ' · evil' : ''}${x.reminders.length ? `<small>${x.reminders.map(esc).join(', ')}</small>` : ''}</span></div>`).join('')}</div>` : ''}
+      <button class="btn primary big wide" data-n="ok">Got it: back to sleep</button></div>`;
+  }
+  if (p.target === 'yesno')
+    return `<div class="ns-card">${head}<div class="grid2"><button class="btn big" data-n="yes">Yes</button><button class="btn big" data-n="no">No</button></div></div>`;
+  if (p.target === 'character')
+    return `<div class="ns-card">${head}<div class="ns-chars">${(p.choices || []).map((r) => `<button class="ns-char ${nightPick.includes(r.id) ? 'on' : ''}" data-n="role" data-id="${esc(r.id)}">${token(r, { size: 'sm' })}</button>`).join('')}</div>
+      <button class="btn primary big wide" data-n="send" ${nightPick.length ? '' : 'disabled'}>Confirm</button></div>`;
+  const seats = me.seats;
+  return `<div class="ns-card">${head}${p.count > 1 ? `<p class="muted">Pick ${p.count} · ${nightPick.length}/${p.count}</p>` : ''}
+    <div class="ns-players">${seats.map((x) => `<button class="ns-player ${nightPick.includes(x.id) ? 'on' : ''} ${x.dead ? 'dead' : ''}" data-n="seat" data-id="${x.id}">${esc(x.name)}${x.playerId === myId ? ' (you)' : ''}${x.dead ? ' ☠' : ''}</button>`).join('')}</div>
+    <button class="btn primary big wide" data-n="send" ${nightPick.length === p.count ? '' : 'disabled'}>Confirm</button></div>`;
+}
+async function onNightClick(e) {
+  const b = e.target.closest('[data-n]');
+  if (!b) return;
+  const p = me?.prompt;
+  const n = b.dataset.n;
+  if (n === 'hide') {
+    nightHidden = true;
+    return updateNight();
+  }
+  if (!p) return;
+  const answer = (a) => {
+    b.disabled = true;
+    return call('botc:answer', { id: p.id, ...a }).then((res) => !res?.ok && toast('Could not send: try again'));
+  };
+  if (n === 'seat' || n === 'role') {
+    const id = b.dataset.id;
+    const max = n === 'role' ? 1 : p.count;
+    nightPick = nightPick.includes(id) ? nightPick.filter((x) => x !== id) : [...nightPick, id].slice(-max);
+    return updateNight();
+  }
+  if (n === 'send') return answer(p.target === 'character' ? { roles: nightPick } : { seats: nightPick });
+  if (n === 'yes' || n === 'no') return answer({ yes: n === 'yes' });
+  if (n === 'ok') return answer({});
 }
 
 // ---------- Player ----------
@@ -590,15 +674,29 @@ const ST_BODY = {
     const v = st;
     if (!v.nightOrder) return `<div class="center"><p class="h">🌙</p><p class="muted">The night order shows up here at night, with only the characters in play.</p></div>`;
     const list = v.nightOrder.list;
-    return `<h2 class="h">${v.nightOrder.first ? 'First night' : `Night ${v.night}`}</h2><p class="hint">Tap a step when it's done.</p>
+    const ctx = nightCtx();
+    return `<h2 class="h">${v.nightOrder.first ? 'First night' : `Night ${v.night}`}</h2><p class="hint">📱 wakes that player on their phone; you can change what's sent first. Or do it in person and tap the step when it's done.</p>
       <ol class="night">${list
         .map((it) => {
           const k = `${v.night}:${it.id}`;
           const dead = it.seats.length && it.seats.every((s) => s.dead);
+          const canWake = !['dusk', 'dawn'].includes(it.id) && (it.special ? suggest(it, ctx).some((x) => x.to.length) : it.seats.length);
+          const ps = v.prompts.filter((p) => p.step === it.id);
+          const status = ps
+            .map((p) => {
+              const a = p.answer;
+              const what = !a ? '<span class="wait">waiting…</span>' : a.ack ? '✓ seen' : `chose <b>${esc([...a.seats.map((x) => x.name), ...a.roles.map((r) => r.name), a.yes === null ? '' : a.yes ? 'yes' : 'no'].filter(Boolean).join(', ') || 'nothing')}</b>`;
+              const fu = followUps(p, ctx);
+              return `<div class="pstat"><span>📱 ${esc(p.name)}: ${what}</span>${!a ? `<button class="chip" data-act="unprompt" data-id="${p.id}">Cancel</button>` : ''}
+                ${fu.map((f, i) => (f.note ? `<span class="small muted">${esc(f.label)}</span>` : `<button class="chip" data-act="follow" data-id="${p.id}" data-i="${i}">${esc(f.label)}</button>`)).join('')}</div>`;
+            })
+            .join('');
           return `<li class="${done.has(k) ? 'done' : ''} ${dead ? 'all-dead' : ''} ${it.special ? 'special' : ''}" data-act="nightdone" data-k="${esc(k)}">
             ${it.special ? `<span class="tk sm special-tk">${it.id === 'dusk' ? '🌆' : it.id === 'dawn' ? '🌅' : it.id === 'demoninfo' ? '😈' : '👹'}</span>` : token({ name: it.name, icon: it.icon, team: it.team }, { size: 'sm', label: false })}
             <div><b>${esc(it.name)}</b>${it.seats.length ? ` <span class="who">${it.seats.map((s) => `${esc(s.name)}${s.really ? ` (really ${esc(s.really)})` : ''}${s.dead ? ' ☠' : ''}`).join(', ')}</span>` : ''}
-            <p>${esc(it.text).replace(/:reminder:/g, '<span class="rem-ico">◉</span>').replace(/\*([^*]+)\*/g, '<b>$1</b>')}</p></div>
+            <p>${esc(it.text).replace(/:reminder:/g, '<span class="rem-ico">◉</span>').replace(/\*([^*]+)\*/g, '<b>$1</b>')}</p>
+            ${status}</div>
+            ${canWake ? `<button class="wake-btn" data-act="wake" data-step="${esc(it.id)}" aria-label="Wake on their phone">📱</button>` : ''}
           </li>`;
         })
         .join('')}</ol>`;
@@ -1003,6 +1101,73 @@ function openSeat(seatId) {
   );
 }
 
+// ---------- Night on phones: the storyteller checks and sends ----------
+const nightCtx = () => ({ seats: st.seats, night: st.night, script: st.script.roles, bluffs: st.bluffs, roleOf: (id) => roleById(id) });
+function openCompose(step, sugs, idx) {
+  const c = JSON.parse(JSON.stringify(sugs[idx]));
+  let pickChars = false;
+  const seatName = (id) => st.seats.find((s) => s.id === id)?.name || '?';
+  const draw = () => {
+    const toNames = c.to.map(seatName).join(', ') || 'nobody';
+    const off = c.to.map((id) => [seatName(id), offReason(st.seats.find((s) => s.id === id))]).filter(([, o]) => o);
+    openSheet(
+      `<h2 class="h">📱 ${esc(step.name)} → ${esc(toNames)}</h2>
+       ${off.length ? `<p class="warn">⚠ ${off.map(([n, o]) => `${esc(n)} is ${esc(o)}`).join(', ')}${c.falseInfo ? ': this suggestion is <b>false info</b>. Only you see this.' : '.'}</p>` : ''}
+       ${c.note ? `<p class="hint">${esc(c.note)}</p>` : ''}
+       <h3 class="sub">Wake</h3>
+       <div class="chips">${st.seats.map((s) => `<button class="chip ${c.to.includes(s.id) ? 'on' : ''}" data-to="${s.id}">${esc(s.name)}${s.dead ? ' ☠' : ''}</button>`).join('')}</div>
+       <div class="seg"><button class="${c.kind === 'choose' ? 'on' : ''}" data-kind="choose">Ask to choose</button><button class="${c.kind === 'info' ? 'on' : ''}" data-kind="info">Show info</button></div>
+       <label class="field">Text on their phone<input id="c-text" maxlength="300" value="${esc(c.text)}"${osk}></label>
+       ${
+         c.kind === 'choose'
+           ? `<h3 class="sub">They choose</h3>
+              <div class="chips">${[['player', 'Player(s)'], ['character', 'A character'], ['yesno', 'Yes or no']].map(([t, l]) => `<button class="chip ${c.target === t ? 'on' : ''}" data-target="${t}">${l}</button>`).join('')}</div>
+              ${c.target === 'player' ? `<div class="chips">${[1, 2, 3].map((n) => `<button class="chip ${c.count === n ? 'on' : ''}" data-count="${n}">${n} player${n > 1 ? 's' : ''}</button>`).join('')}</div>` : ''}`
+           : `<h3 class="sub">Show players</h3>
+              <div class="chips">${st.seats.map((s) => `<button class="chip ${c.seats.includes(s.id) ? 'on' : ''}" data-seat="${s.id}">${esc(s.name)}</button>`).join('')}</div>
+              <h3 class="sub">Show characters</h3>
+              <div class="row">${c.roles.map((id) => token(roleById(id), { size: 'sm' })).join('') || '<span class="muted small">none</span>'}<button class="btn small" data-chars="1">${pickChars ? 'Done' : '✏️ Change'}</button></div>
+              ${pickChars ? rolePicker([...st.script.roles, ...st.extras], { selected: c.roles, multi: true, title: 'Characters to show' }) : ''}
+              <h3 class="sub">Show a number</h3>
+              <div class="chips"><button class="chip ${c.number === null ? 'on' : ''}" data-num="">none</button>${[0, 1, 2, 3, 4, 5].map((n) => `<button class="chip ${c.number === n ? 'on' : ''}" data-num="${n}">${n}</button>`).join('')}</div>
+              <label class="toggle"><input type="checkbox" id="c-grim" ${c.grim ? 'checked' : ''}> Show the whole Grimoire (Spy)</label>`
+       }
+       <div class="row sticky-foot">${sugs.length > 1 ? `<button class="btn" data-next="1">Next (${idx + 1}/${sugs.length})</button>` : ''}<button class="btn" data-reroll="1">↻ Other suggestion</button><button class="btn primary" data-send="1" ${c.to.length ? '' : 'disabled'}>📱 Send</button></div>`,
+      async (e) => {
+        const t = $('#c-text');
+        if (t) c.text = t.value;
+        const g = $('#c-grim');
+        if (g) c.grim = g.checked;
+        const b = e.target.closest('button');
+        if (!b) return;
+        const d = b.dataset;
+        if (d.to) c.to = c.to.includes(d.to) ? c.to.filter((x) => x !== d.to) : [...c.to, d.to];
+        else if (d.kind) c.kind = d.kind;
+        else if (d.target) c.target = d.target;
+        else if (d.count) c.count = Number(d.count);
+        else if (d.seat) c.seats = c.seats.includes(d.seat) ? c.seats.filter((x) => x !== d.seat) : [...c.seats, d.seat];
+        else if (d.chars) pickChars = !pickChars;
+        else if (d.role) c.roles = c.roles.includes(d.role) ? c.roles.filter((x) => x !== d.role) : [...c.roles, d.role];
+        else if ('num' in d) c.number = d.num === '' ? null : Number(d.num);
+        else if (d.next) return openCompose(step, sugs, (idx + 1) % sugs.length);
+        else if (d.reroll) {
+          const fresh = step.seats ? suggest(step, nightCtx()) : [];
+          if (fresh[idx]) return openCompose(step, fresh, idx);
+          return toast('No other suggestion for this one');
+        } else if (d.send) {
+          const res = await call('botc:prompt', { seatIds: c.to, step: step.id, kind: c.kind, text: c.text, count: c.count, target: c.target, roles: c.roles, seats: c.seats, number: c.number, grim: c.grim });
+          if (!res?.ok) return toast(res?.error || 'Could not send');
+          toast(`📱 Sent to ${c.to.map(seatName).join(', ')}`);
+          if (sugs.length > 1 && idx + 1 < sugs.length) return openCompose(step, sugs, idx + 1);
+          return closeSheet();
+        } else return;
+        draw();
+      }
+    );
+  };
+  draw();
+}
+
 function openBluffs() {
   let picked = st.bluffs.map((r) => r.id);
   const options = st.script.roles.filter((r) => st.bluffOptions.includes(r.id) || picked.includes(r.id));
@@ -1310,6 +1475,31 @@ const ACT = {
   },
   reveal: (b) => call('botc:reveal', { on: b.checked }),
   newgame: () => call('botc:newGame'),
+  wake: (b) => {
+    const it = st.nightOrder?.list.find((x) => x.id === b.dataset.step);
+    if (!it) return;
+    const sug = suggest(it, nightCtx());
+    if (!sug.length) return toast('Nothing to send for this step');
+    openCompose(it, sug, 0);
+  },
+  unprompt: (b) => call('botc:cancelPrompt', { id: b.dataset.id }),
+  follow: async (b) => {
+    const p = st.prompts.find((x) => x.id === b.dataset.id);
+    const f = p && followUps(p, nightCtx())[Number(b.dataset.i)];
+    if (!f) return;
+    if (f.dead) {
+      await call('botc:seat', { seatId: f.dead, patch: { dead: true } });
+      return toast('Marked dead');
+    }
+    if (f.reminder) {
+      await call('botc:reminder', { seatId: f.reminder.seatId, add: { role: f.reminder.role, label: f.reminder.label } });
+      return toast(`Reminder added: ${f.reminder.label}`);
+    }
+    if (f.compose) {
+      const it = st.nightOrder?.list.find((x) => x.id === p.step) || { id: p.step, name: roleById(p.step)?.name || p.step, seats: [] };
+      openCompose(it, [{ roles: [], seats: [], number: null, count: 1, target: 'player', grim: false, ...f.compose }], 0);
+    }
+  },
   nightdone: (b) => {
     const k = b.dataset.k;
     if (done.has(k)) done.delete(k);
@@ -1319,7 +1509,7 @@ const ACT = {
 };
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
-  if (!b || b.closest('#sheet')) return;
+  if (!b || b.closest('#sheet') || b.closest('#nightscreen')) return;
   if (b.type === 'checkbox') return;
   ACT[b.dataset.act]?.(b, e);
 });
