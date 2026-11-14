@@ -89,6 +89,38 @@ const NL = {
   '🔔 Send a test alert to every player': '🔔 Stuur een testmelding naar alle spelers', '🔔 Test alert': '🔔 Testmelding', '🔔 No alerts on': '🔔 Geen meldingen aan', Reset: 'Reset', 'Start or pause': 'Start of pauze', 'One minute more': 'Eén minuut erbij',
 };
 
+// Trouble Brewing abilities (unofficial translation; character names stay English)
+const ABILITIES = {
+  "You start knowing how many pairs of evil players there are.": "Je begint met de wetenschap hoeveel paren kwade spelers er zijn.",
+  "You start knowing that 1 of 2 players is a particular Minion.": "Je begint met de wetenschap dat 1 van 2 spelers een bepaalde Handlanger is.",
+  "You start knowing that 1 of 2 players is a particular Townsfolk.": "Je begint met de wetenschap dat 1 van 2 spelers een bepaalde Dorpeling is.",
+  "You start knowing that 1 of 2 players is a particular Outsider. (Or that zero are in play.)": "Je begint met de wetenschap dat 1 van 2 spelers een bepaalde Buitenstaander is. (Of dat er geen in het spel zijn.)",
+  "Each night, you learn how many of your 2 alive neighbors are evil.": "Elke nacht leer je hoeveel van je 2 levende buren kwaad zijn.",
+  "Each night, choose 2 players: you learn if either is a Demon. There is a good player that registers as a Demon to you.": "Kies elke nacht 2 spelers: je leert of een van hen een Demon is. Er is een goede speler die voor jou als Demon telt.",
+  "Each night*, you learn which character died by execution today.": "Elke nacht* leer je welk personage vandaag door executie is gestorven.",
+  "Each night*, choose a player (not yourself): they are safe from the Demon tonight.": "Kies elke nacht* een speler (niet jezelf): die is vannacht veilig voor de Demon.",
+  "Once per game, during the day, publicly choose a player: if they are the Demon, they die.": "Eén keer per spel kies je overdag openlijk een speler: als die de Demon is, sterft die.",
+  "You are safe from the Demon.": "Je bent veilig voor de Demon.",
+  "If you die at night, you are woken to choose a player: you learn their character.": "Als je ’s nachts sterft, word je gewekt om een speler te kiezen: je leert diens personage.",
+  "If only 3 players live & no execution occurs, your team wins. If you die at night, another player might die instead.": "Als er nog maar 3 spelers leven en er geen executie is, wint jouw team. Als je ’s nachts sterft, kan een andere speler in jouw plaats sterven.",
+  "The 1st time you are nominated, if the nominator is a Townsfolk, they are executed immediately.": "De 1e keer dat je genomineerd wordt: als de nominator een Dorpeling is, wordt die meteen geëxecuteerd.",
+  "Each night, choose a player (not yourself): tomorrow, you may only vote if they are voting too.": "Kies elke nacht een speler (niet jezelf): morgen mag je alleen stemmen als die ook stemt.",
+  "You do not know you are the Drunk. You think you are a Townsfolk character, but you are not.": "Je weet niet dat je de Drunk bent. Je denkt dat je een Dorpeling bent, maar dat ben je niet.",
+  "You might register as evil & as a Minion or Demon, even if dead.": "Je kunt als kwaad en als Handlanger of Demon tellen, zelfs als je dood bent.",
+  "If you die by execution, your team loses.": "Als je door executie sterft, verliest jouw team.",
+  "Each night, choose a player: they are poisoned tonight and tomorrow day.": "Kies elke nacht een speler: die is vannacht en morgen overdag vergiftigd.",
+  "Each night, you see the Grimoire. You might register as good & as a Townsfolk or Outsider, even if dead.": "Elke nacht zie je de Grimoire. Je kunt als goed en als Dorpeling of Buitenstaander tellen, zelfs als je dood bent.",
+  "If there are 5 or more players alive & the Demon dies, you become the Demon. (Travellers don't count.)": "Als er 5 of meer spelers leven en de Demon sterft, word jij de Demon. (Reizigers tellen niet mee.)",
+  "There are extra Outsiders in play. [+2 Outsiders]": "Er zijn extra Buitenstaanders in het spel. [+2 Buitenstaanders]",
+  "Each night*, choose a player: they die. If you kill yourself this way, a Minion becomes the Imp.": "Kies elke nacht* een speler: die sterft. Als je zo jezelf doodt, wordt een Handlanger de Imp.",
+  "Each night, choose a player (not yourself): their vote counts negatively tomorrow.": "Kies elke nacht een speler (niet jezelf): diens stem telt morgen negatief.",
+  "Each night, choose a player (not yourself): their vote counts as 3 votes tomorrow.": "Kies elke nacht een speler (niet jezelf): diens stem telt morgen als 3 stemmen.",
+  "Each day, after the 1st vote has been tallied, you may choose a player that voted: they die.": "Elke dag, nadat de 1e stemming is geteld, mag je een speler kiezen die heeft gestemd: die sterft.",
+  "You must use a vote token to vote. If a dead player gives you theirs, you learn their alignment. You are sober & healthy.": "Je hebt een stemfiche nodig om te stemmen. Als een dode speler je de zijne geeft, leer je diens kant. Je bent nuchter en gezond.",
+  "If a player of your alignment is executed, you might be executed instead.": "Als een speler van jouw kant wordt geëxecuteerd, kun jij in diens plaats worden geëxecuteerd.",
+};
+Object.assign(NL, ABILITIES, { 'Ability texts: unofficial Dutch translation (Trouble Brewing). Character names stay English.': 'Vaardigheden: onofficiële Nederlandse vertaling (Trouble Brewing). Namen van personages blijven Engels.' });
+
 // texts with a name or number in them
 const PATTERNS = [
   [/^(🌙|☀️|🕯️) (.+?)( ·)?$/u, (m, icon, inner, dot) => `${icon} ${tr(inner)}${dot || ''}`],

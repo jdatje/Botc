@@ -600,6 +600,7 @@ function squareMid(v) {
 
 function scriptHtml(s) {
   if (!s) return '';
+  const note = getLang() === 'nl' ? '<p class="hint">Ability texts: unofficial Dutch translation (Trouble Brewing). Character names stay English.</p>' : '';
   const groups = TEAMS.map(([team, label]) => {
     const list = s.roles.filter((r) => r.team === team);
     if (!list.length) return '';
@@ -612,7 +613,7 @@ function scriptHtml(s) {
         .map((j) => `<div class="role-row">${token(j.a, { label: false, size: 'xs' })}${token(j.b, { label: false, size: 'xs' })}<div><b>${esc(j.a?.name)} & ${esc(j.b?.name)}</b><p>${esc(j.reason)}</p></div></div>`)
         .join('')}`
     : '';
-  return `<div class="script-head">${s.logo ? `<img src="${esc(s.logo)}" alt="" class="script-logo">` : ''}<div><h2 class="h">${esc(s.name)}</h2>${s.author ? `<span class="muted small">by ${esc(s.author)}</span>` : ''}</div></div>${groups}${jinx}${ccc()}`;
+  return `<div class="script-head">${s.logo ? `<img src="${esc(s.logo)}" alt="" class="script-logo">` : ''}<div><h2 class="h">${esc(s.name)}</h2>${s.author ? `<span class="muted small">by ${esc(s.author)}</span>` : ''}</div></div>${note}${groups}${jinx}${ccc()}`;
 }
 const ccc = () => `<footer class="ccc"><img src="img/ccc.png" alt="Community Created Content"><span>Blood on the Clocktower is a product of The Pandemonium Institute. This is a free, unofficial fan-made helper.</span></footer>`;
 
