@@ -187,7 +187,7 @@ async function pushOff() {
 }
 function alertsCard() {
   if (pushState === 'none') return '';
-  if (pushState === 'on') return `<p class="alerts-on small">🔔 Alerts on this phone are on · <button class="linkish" data-act="push-off">turn off</button></p>`;
+  if (pushState === 'on') return `<p class="alerts-on small">🔔 Alerts on this phone are on · <button class="linkish" data-act="push-test">send a test</button> · <button class="linkish" data-act="push-off">turn off</button></p>`;
   const body = {
     off: `<p>Get a buzz for your turn at night and when the day timer runs out, also with the screen off.</p><button class="btn primary" data-act="push-on">🔔 Turn on alerts</button>`,
     denied: `<p>Notifications are blocked for this site. Allow them in your phone's settings, then reload.</p>`,
@@ -198,6 +198,9 @@ function alertsCard() {
 // tell the server whether this page is in view: no push when you're looking at it anyway
 const sendVisible = () => socket.emit('push:visible', { visible: document.visibilityState === 'visible' });
 document.addEventListener('visibilitychange', sendVisible);
+// keep saying "I'm on screen" while visible; when a phone locks, this stops and the server notices
+setInterval(() => document.visibilityState === 'visible' && socket.connected && sendVisible(), 10000);
+socket.on('push:testResult', (r) => !r.ok && toast(`Test failed: ${r.error}`, 8000));
 window.addEventListener('pagehide', () => socket.emit('push:visible', { visible: false }));
 socket.on('connect', sendVisible);
 
@@ -1644,6 +1647,10 @@ const ACT = {
   newgame: () => call('botc:newGame'),
   'push-on': () => pushOn(),
   'push-off': () => pushOff(),
+  'push-test': async () => {
+    const r = await call('push:test');
+    toast(r?.ok ? 'Test alert in 5 seconds: lock your phone now' : r?.error || 'Could not send a test', 5000);
+  },
   wake: (b) => {
     const it = st.nightOrder?.list.find((x) => x.id === b.dataset.step);
     if (!it) return;

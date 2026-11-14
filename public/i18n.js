@@ -31,7 +31,8 @@ const NL = {
   'Get a buzz for your turn at night and when the day timer runs out, also with the screen off.': 'Krijg een trilling als je ’s nachts aan de beurt bent en als de dagtimer afloopt, ook met je scherm uit.',
   'Notifications are blocked for this site. Allow them in your phone\'s settings, then reload.': 'Meldingen zijn geblokkeerd voor deze site. Sta ze toe in de instellingen van je telefoon en herlaad.',
   'On iPhone, alerts only work from the home screen app:': 'Op iPhone werken meldingen alleen vanuit de app op je beginscherm:',
-  'Add to Home Screen': 'Zet op beginscherm', 'turn off': 'uitzetten', '🔔 Alerts on': '🔔 Meldingen aan', 'Could not turn on alerts': 'Meldingen aanzetten lukte niet',
+  'Add to Home Screen': 'Zet op beginscherm', 'send a test': 'stuur een test', 'Test alert in 5 seconds: lock your phone now': 'Testmelding over 5 seconden: vergrendel nu je telefoon',
+  '🔔 Alerts on this phone are on ·': '🔔 Meldingen op deze telefoon staan aan ·', 'This phone has no alerts turned on for this game': 'Deze telefoon heeft geen meldingen aan voor dit spel', 'turn off': 'uitzetten', '🔔 Alerts on': '🔔 Meldingen aan', 'Could not turn on alerts': 'Meldingen aanzetten lukte niet',
   // town
   'Tap a player to note what you think they are. Only you can see this.': 'Tik op een speler om te noteren wat je denkt dat die is. Alleen jij ziet dit.',
   'No players yet.': 'Nog geen spelers.', 'Note, e.g. claims Chef, said 1': 'Notitie, bijv. claimt Chef, zei 1', 'Save note': 'Notitie opslaan',
@@ -116,6 +117,7 @@ const PATTERNS = [
   [/^Picked (\d+)\/(\d+)$/, 'Gekozen $1/$2'],
   [/^Players join with code$/, 'Spelers doen mee met code'],
   [/^(\d+) min$/, '$1 min'],
+  [/^Test failed: (.+)$/, 'Test mislukt: $1'],
   [/^Reminder added: (.+)$/, 'Herinnering toegevoegd: $1'],
   [/^☠ (.+) dies$/, '☠ $1 sterft'],
   [/^(.+) chose$/, '$1 koos'],
