@@ -75,9 +75,9 @@ const KNOWN = {
     const r = off ? pick(ctx.script.filter((x) => x.id !== ex.role?.id)) : ex.role;
     return { kind: 'info', text: `The character of ${ex.name}, executed today`, roles: r ? [r.id] : [] };
   },
-  monk: () => ({ kind: 'choose', text: 'Choose a player to protect from the Demon tonight (not yourself)', count: 1, target: 'player' }),
+  monk: () => ({ kind: 'choose', text: 'Choose a player to protect from the Demon tonight (not yourself)', count: 1, target: 'player', notSelf: true }),
   ravenkeeper: (ctx, a) => ({ kind: 'choose', text: 'You died tonight. Choose a player to learn their character', count: 1, target: 'player', note: a?.diedAt === `n${ctx.night}` ? '' : 'Only if the Ravenkeeper died tonight.' }),
-  butler: () => ({ kind: 'choose', text: 'Choose your Master (not yourself). Tomorrow you may only vote if they vote too', count: 1, target: 'player' }),
+  butler: () => ({ kind: 'choose', text: 'Choose your Master (not yourself). Tomorrow you may only vote if they vote too', count: 1, target: 'player', notSelf: true }),
   poisoner: () => ({ kind: 'choose', text: 'Choose a player to poison', count: 1, target: 'player' }),
   spy: () => ({ kind: 'info', text: 'The Grimoire', grim: true }),
   imp: () => ({ kind: 'choose', text: 'Choose a player to kill', count: 1, target: 'player' }),
@@ -93,14 +93,14 @@ function fromText(text) {
   const t = (text || '').toLowerCase();
   const n = /chooses? (2|two) players/.test(t) ? 2 : /chooses? (3|three) players/.test(t) ? 3 : 1;
   if (/chooses? a character/.test(t)) return { kind: 'choose', text: 'Choose a character', count: 1, target: 'character' };
-  if (/chooses?|points? to/.test(t)) return { kind: 'choose', text: n > 1 ? `Choose ${n} players` : 'Choose a player', count: n, target: 'player' };
+  if (/chooses?|points? to/.test(t)) return { kind: 'choose', text: n > 1 ? `Choose ${n} players` : 'Choose a player', count: n, target: 'player', notSelf: /not (?:yourself|themselves|themself)|other than (?:yourself|themselves)/.test(t) };
   if (/finger signal|number/.test(t)) return { kind: 'info', text: 'Your number', number: 0 };
   if (/nod|shake/.test(t)) return { kind: 'info', text: 'Yes' };
   if (/show .*token|learn/.test(t)) return { kind: 'info', text: 'You learn' };
   return { kind: 'info', text: '' };
 }
 
-const DEFAULTS = { roles: [], seats: [], number: null, count: 1, target: 'player', grim: false, off: '', falseInfo: false, note: '', text: '', seatsLabel: '', rolesLabel: '' };
+const DEFAULTS = { roles: [], seats: [], number: null, count: 1, target: 'player', grim: false, off: '', falseInfo: false, note: '', text: '', seatsLabel: '', rolesLabel: '', notSelf: false };
 const AUTO_MARK = { poisoner: 'Poisoned', monk: 'Safe', butler: 'Master' }; // the server adds these itself
 // one suggestion per acting seat (Minion info: one for all Minions)
 export function suggest(step, ctx) {

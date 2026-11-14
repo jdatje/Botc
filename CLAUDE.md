@@ -41,4 +41,6 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 - Scarlet Woman: when the Demon dies with 5+ alive she becomes the Demon in the grimoire (`shown` stays Scarlet
   Woman until her night info or the seat sheet's "Show You are"). `g.history` = phone-night log (ST always, all at reveal).
 - Town layout: `g.layout` circle | table; `botc:moveSeat` any phase.
+- Group chats: `g.groups` (id → { name, members, by }), messages in `g.chats['g:<id>']`. Only members see a group
+  (not the storyteller); locked at night like player chats; leaving with <2 members deletes it.
 - Test locally: `BASE_PATH=/botc PORT=4100 DATA_DIR=/tmp/x node server.js`.
