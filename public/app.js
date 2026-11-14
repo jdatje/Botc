@@ -573,7 +573,6 @@ const P_BODY = {
             ${full?.role ? token(full.shown && full.shown.id !== full.role.id ? full.role : full.role, { align: full.align, label: true }) : self ? '<span class="tk tk-back mine-back"></span>' : token(r, { label: Boolean(r), cls: `${r ? 'guess' : ''} ${al ? `g-${al}` : ''}` })}
             ${!full && !self && al ? `<span class="g-mark ${al}">${al === 'evil' ? '😈' : '😇'}</span>` : ''}
             ${s.dead ? `<span class="shroud ${s.ghost ? '' : 'voted'}" title="${s.ghost ? 'dead' : 'dead · ghost vote used'}"></span>` : ''}
-            ${s.dead && s.ghost ? `<span class="ghost" title="ghost vote">👻 vote</span>` : ''}
             <span class="seat-name">${esc(s.name)}${self ? ' (you)' : ''}</span>
             ${gs?.note ? `<span class="seat-note">${esc(gs.note)}</span>` : ''}
           </button>`;
@@ -801,7 +800,6 @@ const ST_BODY = {
           ${token(s.role, { align: s.align })}
           ${marker}
           ${s.dead ? `<span class="shroud ${s.ghost ? '' : 'voted'}"></span>` : ''}
-          ${s.dead && s.ghost ? `<span class="ghost">👻 vote</span>` : ''}
           <span class="seat-name">${esc(s.name)}</span>
           ${s.shown ? `<span class="seat-note">sees ${esc(s.shown.name)}</span>` : ''}
           ${s.reminders.length ? `<span class="rems">${s.reminders.map((r) => `<span class="rem">${esc(r.label)}</span>`).join('')}</span>` : ''}
@@ -975,7 +973,7 @@ function renderPublic() {
       ${EMBED ? `<button class="btn small" data-act="leave-room">⇄ Other game</button><button class="btn small" data-act="close">✕ Close</button>` : `<button class="btn small" data-act="leave-room">✕ Leave</button>`}
     </div>
     <div class="square pub-square" data-square>${v.seats
-      .map((s) => `<div class="seat ${s.dead ? 'dead' : ''}">${v.reveal ? token(s.role, { align: s.align }) : `<span class="tk blank"></span>`}${s.dead ? `<span class="shroud ${s.ghost ? '' : 'voted'}"></span>` : ''}${s.dead && s.ghost ? '<span class="ghost">👻 vote</span>' : ''}<span class="seat-name">${esc(s.name)}</span>${v.reveal && s.shown ? `<span class="seat-note">thought: ${esc(s.shown.name)}</span>` : ''}</div>`)
+      .map((s) => `<div class="seat ${s.dead ? 'dead' : ''}">${v.reveal ? token(s.role, { align: s.align }) : `<span class="tk blank"></span>`}${s.dead ? `<span class="shroud ${s.ghost ? '' : 'voted'}"></span>` : ''}<span class="seat-name">${esc(s.name)}</span>${v.reveal && s.shown ? `<span class="seat-note">thought: ${esc(s.shown.name)}</span>` : ''}</div>`)
       .join('')}<div class="square-mid">${mid}</div></div>
     ${ccc()}
   </div>`;
