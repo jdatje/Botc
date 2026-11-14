@@ -1426,7 +1426,47 @@ setInterval(() => {
     bell();
   }
   if (v.timer.running && timeLeft(v.timer) > 0) bell.rung = false;
+  dayAlerts(v);
 }, 250);
+
+// phones: 30 seconds left → buzz + message; time's up → buzz, bell and "back to the town square".
+// Only when the timer crosses the mark while it runs, so opening the page at 0:00 doesn't alarm.
+let lastLeft = null;
+function dayAlerts(v) {
+  if (mode !== 'player' && mode !== 'waiting' && mode !== 'st') return (lastLeft = null);
+  const left = timeLeft(v.timer);
+  const was = lastLeft;
+  lastLeft = v.timer.running ? left : null;
+  if (!v.timer.running || was == null) return;
+  if (was > 30000 && left <= 30000 && left > 0) {
+    buzz([200, 100, 200]);
+    toast('⏳ 30 seconds left: start wrapping up');
+  }
+  if (was > 0 && left === 0) {
+    buzz([500, 200, 500, 200, 800]);
+    bell();
+    timeUp();
+  }
+}
+const buzz = (p) => {
+  try { navigator.vibrate?.(p); } catch {}
+};
+function timeUp() {
+  document.querySelector('.time-up')?.remove();
+  const el = document.createElement('div');
+  el.className = 'time-up';
+  el.setAttribute('role', 'alertdialog');
+  el.innerHTML = `<div class="time-up-in"><div class="time-up-icon" aria-hidden="true">🔔</div><h2 class="h">Time's up</h2><p>Return to the town square</p><button class="btn primary big" data-timeup="ok">On my way</button></div>`;
+  document.body.append(el);
+  el.addEventListener('click', (e) => e.target.closest('[data-timeup]') && el.remove());
+}
+// browsers only allow sound after a tap: wake the audio on the first one
+window.addEventListener('pointerdown', () => {
+  try {
+    audio ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+  } catch {}
+}, { once: true });
 
 // a church bell, made with Web Audio (no sound files)
 let audio = null;
