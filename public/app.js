@@ -621,6 +621,19 @@ function rulesHtml() {
   return `<h2 class="h">How it works</h2>${RULES.map((r, i) => `<details class="rule" ${i === 0 ? 'open' : ''}><summary>${esc(r.title)}</summary>${r.body}</details>`).join('')}${ccc()}`;
 }
 
+// one ability result: who, what they chose or exactly what they were shown
+function recordLine(h) {
+  const who = `<b>${esc(h.step)}</b> <span class="muted">${esc(h.who)}${h.really ? ` · really ${esc(h.really)}` : ''}</span>`;
+  if (h.kind === 'choose') return `${who} chose <b>${esc(h.chose.join(', ') || 'nothing')}</b>`;
+  const shown = [
+    h.number !== null && h.number !== undefined ? `<span class="rec-num">${h.number}</span>` : '',
+    h.seats?.length ? `<span class="rec-seats">${h.seats.map(esc).join(' · ')}</span>` : '',
+    h.roles?.length ? h.roles.map((r) => `<span class="rec-role">${esc(r)}</span>`).join('') : '',
+    h.grim ? '<span class="rec-role">the Grimoire</span>' : '',
+  ].join(' ');
+  return `${who} was shown ${shown || '—'}${h.off ? ` <span class="rec-off">⚠ false info (${esc(h.off)})</span>` : ''}<div class="rec-text">“${esc(h.text)}”</div>`;
+}
+
 // what happened on the phones, night by night (storyteller any time; everyone at the end)
 function historyHtml(list, openLast) {
   if (!list?.length) return '';
@@ -631,7 +644,7 @@ function historyHtml(list, openLast) {
         .filter((h) => h.night === n)
         .map((h) => {
           const shown = [h.number !== null && h.number !== undefined ? `<b>${h.number}</b>` : '', h.seats.length ? esc(h.seats.join(', ')) : '', h.roles.length ? `<i>${esc(h.roles.join(', '))}</i>` : ''].filter(Boolean).join(' · ');
-          return `<li><b>${esc(h.step)}</b> <span class="muted">(${esc(h.who)})</span>: ${h.kind === 'choose' ? `chose <b>${esc(h.chose.join(', ') || 'nothing')}</b>` : `saw “${esc(h.text)}”${shown ? ` ${shown}` : ''}`}</li>`;
+          return `<li>${recordLine(h)}</li>`;
         })
         .join('')}</ul></details>`
     )
@@ -840,24 +853,39 @@ const ST_BODY = {
             ${canWake ? `<button class="wake-btn" data-act="wake" data-step="${esc(it.id)}" aria-label="Wake on their phone">📱</button>` : ''}
           </li>`;
         })
-        .join('')}</ol>${historyHtml(v.history.filter((h) => h.night < v.night), false)}`;
+        .join('')}</ol>${v.nightOrder.skipped?.length ? `<p class="hint">Skipped (dead): ${esc(v.nightOrder.skipped.join(', '))}</p>` : ''}`;
   },
   script: () => scriptHtml(st.script),
   chats: () => chatsBody(),
   notes() {
-    return `<label class="h" for="st-notes">Storyteller notes</label>
-      <textarea id="st-notes" class="notes"${osk}>${esc(st.stNotes || '')}</textarea>
-      <h3 class="h">Game log</h3>
-      <form class="inline-form" id="log-form"><input id="log-in" placeholder="Add to the log" maxlength="300" autocomplete="off"${osk}><button class="btn small" type="submit">Add</button></form>
-      <ol class="log" id="log">${logItems()}</ol>`;
+    return `<details class="st-free" ${st.stNotes ? 'open' : ''}><summary class="h">My notes</summary>
+        <textarea id="st-notes" class="notes small-notes"${osk}>${esc(st.stNotes || '')}</textarea></details>
+      <h3 class="h">Game record</h3>
+      <p class="hint">Everything that happened, night by night: what each player chose and exactly what they were shown, deaths, and your own lines.</p>
+      <form class="inline-form" id="log-form"><input id="log-in" placeholder="Add to the record, e.g. Test 3 claimed Chef" maxlength="300" autocomplete="off"${osk}><button class="btn small" type="submit">Add</button></form>
+      <div id="log">${logItems()}</div>`;
   },
 };
-const logItems = () =>
-  st.log
-    .slice()
+// the record: log lines + ability results, grouped per night/day, newest first
+function logItems() {
+  const time = (t) => new Date(t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const items = [
+    ...st.log.map((l) => ({ t: l.t, phase: l.phase, html: `${/ died$/.test(l.text) ? '☠ ' : ''}${esc(l.text)}`, cls: 'rec-log' })),
+    ...(st.history || []).map((h) => ({ t: h.t || 0, phase: `Night ${h.night}`, html: recordLine(h), cls: `rec-ab ${h.kind}` })),
+  ].sort((a, b) => a.t - b.t);
+  if (!items.length) return '<p class="muted center">Nothing yet. Results show up here as soon as you send them.</p>';
+  const phases = [];
+  for (const it of items) {
+    let ph = phases.find((x) => x.name === it.phase);
+    if (!ph) phases.push((ph = { name: it.phase, items: [] }));
+    ph.items.push(it);
+  }
+  const label = (n) => (n === 'Night 1' ? 'First night' : n === 'setup' ? 'Setup' : n === 'ended' ? 'After the game' : n);
+  return phases
     .reverse()
-    .map((l) => `<li><span class="muted small">${esc(l.phase)} · ${new Date(l.t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> ${esc(l.text)}</li>`)
+    .map((ph, i) => `<details class="rec-phase" ${i < 3 ? 'open' : ''}><summary>${/^Night/.test(ph.name) ? '🌙' : /^Day/.test(ph.name) ? '☀️' : '🕯️'} ${esc(label(ph.name))}</summary><ul>${ph.items.map((it) => `<li class="${it.cls}"><span class="rec-time">${time(it.t)}</span><div>${it.html}</div></li>`).join('')}</ul></details>`)
     .join('');
+}
 function updateLog() {
   const el = $('#log');
   if (el) el.innerHTML = logItems();
@@ -1390,7 +1418,7 @@ function openCompose(step, sugs, idx) {
           if (fresh[idx]) return openCompose(step, fresh, idx);
           return toast('No other suggestion for this one');
         } else if (d.send) {
-          const res = await call('botc:prompt', { seatIds: c.to, step: step.id, kind: c.kind, text: c.text, count: c.count, target: c.target, roles: c.roles, seats: c.seats, number: c.number, grim: c.grim, seatsLabel: c.seatsLabel, rolesLabel: c.rolesLabel, notSelf: c.notSelf });
+          const res = await call('botc:prompt', { seatIds: c.to, step: step.id, kind: c.kind, text: c.text, count: c.count, target: c.target, roles: c.roles, seats: c.seats, number: c.number, grim: c.grim, seatsLabel: c.seatsLabel, rolesLabel: c.rolesLabel, notSelf: c.notSelf, off: c.to.map((id) => offReason(st.seats.find((x) => x.id === id))).find(Boolean) || '' });
           if (!res?.ok) return toast(res?.error || 'Could not send');
           toast(`📱 Sent to ${c.to.map(seatName).join(', ')}`);
           if (sugs.length > 1 && idx + 1 < sugs.length) return openCompose(step, sugs, idx + 1);
