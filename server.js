@@ -19,6 +19,7 @@ import http from 'node:http';
 import { Server } from 'socket.io';
 import QRCode from 'qrcode';
 import * as game from './lib/game.js';
+import * as push from './lib/push.js';
 import { createBoardpassClient } from './lib/boardpass-client.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -111,6 +112,10 @@ site.get('/qr/:code.png', async (req, res) => {
   const png = await QRCode.toBuffer(`${base}/?code=${code}`, { margin: 1, width: 360, color: { dark: '#111111', light: '#FFFFFF' } });
   res.type('png').set('Cache-Control', 'public, max-age=86400').send(png);
 });
+// Web Push: the public key for the browser's subscription
+site.get('/push/key', (_req, res) => res.set('Cache-Control', 'no-store').json({ key: push.publicKey() }));
+// the service worker must not be cached, so updates reach phones
+site.get('/sw.js', (_req, res) => res.set({ 'Cache-Control': 'no-cache', 'Content-Type': 'text/javascript' }).sendFile('sw.js', { root: 'public' }));
 site.use('/icons', express.static('public/icons', { maxAge: '30d' }));
 site.use('/img', express.static('public/img', { maxAge: '30d' }));
 site.use(express.static('public', { setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }));

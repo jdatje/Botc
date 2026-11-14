@@ -400,3 +400,26 @@ textarea.short { min-height: 140px; }
 .ns-label { margin: 6px 0 0; font-size: 13px; letter-spacing: .15em; text-transform: uppercase; color: #c9a45c; }
 .ns-names.big span { font-size: 24px; padding: 12px 22px; background: rgba(160, 30, 30, .35); border: 1px solid rgba(220, 80, 80, .5); }
 .nightback { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 80; padding: 12px 20px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: #12162a; color: #d9d6e8; font: inherit; font-size: 16px; box-shadow: 0 6px 24px rgba(0,0,0,.5); cursor: pointer; }
+
+/* push alerts */
+.alerts-card { margin: 14px 0; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--bg2); text-align: left; display: flex; flex-direction: column; gap: 8px; }
+.alerts-card p, .alerts-card ol { margin: 0; }
+.alerts-card ol { padding-left: 20px; line-height: 1.5; }
+.alerts-on { text-align: center; color: var(--ink2); margin: 12px 0; }
+.linkish { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; font: inherit; cursor: pointer; }
+
+/* no text selection or image callout on your token (long press = reveal) */
+.hold *, .tk img, .tk { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.tk img { -webkit-user-drag: none; pointer-events: none; }
+.mine-back { width: var(--tk, 64px); height: var(--tk, 64px); }
+.mine-back::after { font-size: calc(var(--tk, 64px) * .45); }
+.square[data-shape='table']::before { inset: var(--tbl-y, 25%) var(--tbl-x, 12%); border-radius: 22px; }
+.hist { margin: 8px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg2); }
+.hist summary { cursor: pointer; font-weight: 700; }
+.hist ul { margin: 8px 0 2px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.hist { margin: 8px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg2); }
+.hist summary { cursor: pointer; font-weight: 700; }
+.hist ul { margin: 8px 0 2px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.square[data-shape='table'] .square-mid { width: calc(100% - 2 * var(--tbl-x, 12%) - 12px); }
+.square[data-shape='table'] .square-mid .muted { font-size: 12px; }
+.lang-seg { margin: 6px 0 14px; }

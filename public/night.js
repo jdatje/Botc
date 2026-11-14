@@ -81,9 +81,10 @@ const KNOWN = {
   poisoner: () => ({ kind: 'choose', text: 'Choose a player to poison', count: 1, target: 'player' }),
   spy: () => ({ kind: 'info', text: 'The Grimoire', grim: true }),
   imp: () => ({ kind: 'choose', text: 'Choose a player to kill', count: 1, target: 'player' }),
-  scarletwoman: (ctx) => {
-    const d = ctx.seats.find(isDemon);
-    return { kind: 'info', text: 'You are now the Demon', roles: d?.role ? [d.role.id] : [] };
+  scarletwoman: (ctx, a) => {
+    const now = a?.role?.team === 'demon' ? a.role : null;
+    if (!now) return { kind: 'info', text: 'You are now the Demon', roles: [], note: 'The Demon has not died: the Scarlet Woman does not wake.' };
+    return { kind: 'info', text: `You are now the ${now.name}`, roles: [now.id] };
   },
 };
 
