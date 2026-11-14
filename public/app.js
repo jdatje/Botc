@@ -303,13 +303,13 @@ socket.on('botc:stNotes', (text) => {
 });
 socket.on('botc:msg', (m) => {
   const mine = meChatId();
-  const other = m.from === mine ? m.to : m.from;
+  const other = String(m.to).startsWith('g:') ? m.to : m.from === mine ? m.to : m.from;
   (chats[other] ||= []).push(m);
   if (m.from !== mine) {
     try { navigator.vibrate?.([120, 60, 120]); } catch {}
     const open = thread === other && ((mode === 'player' && ptab === 'chats') || (mode === 'st' && stab === 'chats'));
     if (open) markRead(other);
-    else toast(`💬 ${nameOf(other)}: ${m.text.slice(0, 60)}`);
+    else toast(`💬 ${other.startsWith('g:') ? `${nameOf(other)} · ${nameOf(m.from)}` : nameOf(other)}: ${m.text.slice(0, 60)}`);
   }
   render();
 });
@@ -357,6 +357,7 @@ function phaseLabel(v) {
 }
 function nameOf(id) {
   if (id === 'st') return 'Storyteller';
+  if (String(id).startsWith('g:')) return (view()?.groups || []).find((x) => x.id === id)?.name || 'Group';
   return (view()?.seats || []).find((s) => s.playerId === id)?.name || 'Someone';
 }
 const readKey = () => `botc-read-${meChatId()}`;
@@ -387,7 +388,7 @@ function render(force) {
   if (mode === 'waiting') return renderWaiting();
   const tabs = mode === 'st' ? ST_TABS : P_TABS;
   const cur = mode === 'st' ? stab : ptab;
-  const key = `${mode}:${cur}:${thread || ''}`;
+  const key = `${mode}:${cur}:${thread || ''}:${cur === 'chats' && thread ? locked(thread) : ''}`;
   if (!$('#hd') || force) {
     app.innerHTML = `<header id="hd" class="hd"></header><main id="bd" class="bd"></main><nav id="nav" class="nav"></nav>`;
     lastBody = '';
@@ -648,7 +649,8 @@ function revealHtml(v) {
 function chatPartners() {
   const v = view();
   const others = (v.seats || []).filter((s) => s.playerId && s.playerId !== myId).map((s) => ({ id: s.playerId, name: s.name, dead: s.dead }));
-  const list = mode === 'st' ? others : [{ id: 'st', name: 'Storyteller', st: true }, ...others];
+  const groups = mode === 'st' ? [] : (v.groups || []).map((x) => ({ id: x.id, name: x.name, group: true, members: x.members }));
+  const list = mode === 'st' ? others : [{ id: 'st', name: 'Storyteller', st: true }, ...groups, ...others];
   // whoever wrote last on top; chats without messages keep the table order below
   const lastT = (id) => (chats[id] || []).at(-1)?.t || 0;
   return list.map((p, i) => ({ p, i, t: lastT(p.id) })).sort((a, b) => b.t - a.t || a.i - b.i).map((x) => x.p);
@@ -657,12 +659,16 @@ function locked(partner) {
   const v = view();
   if (mode === 'st') return false;
   if (partner === 'st') return v.stChatLocked;
-  return v.chatLocked;
+  return v.chatLocked; // players and groups
 }
 function chatsBody() {
   if (thread) {
     const lock = locked(thread);
-    return `<div class="thread-head"><button class="btn small" data-act="thread-back">← Back</button><b>${esc(nameOf(thread))}</b></div>
+    const gr = thread.startsWith('g:') ? (view().groups || []).find((x) => x.id === thread) : null;
+    if (thread.startsWith('g:') && !gr) thread = null;
+    else
+    return `<div class="thread-head"><button class="btn small" data-act="thread-back">← Back</button><b>${gr ? '👥 ' : ''}${esc(nameOf(thread))}</b>${gr ? `<button class="btn small thread-leave" data-act="group-leave">Leave</button>` : ''}</div>
+      ${gr ? `<p class="hint group-members">${gr.members.map((m) => esc(m.id === myId ? 'you' : m.name)).join(' · ')}</p>` : ''}
       <div class="msgs" id="msgs"></div>
       <form class="send" id="send-form">
         ${lock ? `<p class="locked">🌙 Chats are locked at night</p>` : `<input id="send-text" autocomplete="off" maxlength="1000" placeholder="Message ${esc(nameOf(thread))}"${osk}><button class="btn primary" type="submit">Send</button>`}
@@ -670,15 +676,17 @@ function chatsBody() {
   }
   const v = view();
   const lockNote = mode !== 'st' && v.chatLocked ? `<p class="locked">🌙 Night: chats are locked${v.stChatLocked ? '' : ' (the storyteller can still be reached)'}</p>` : '';
+  const canGroup = mode === 'player' && (v.seats || []).some((x) => x.playerId === myId);
   return `${lockNote}<p class="hint">${mode === 'st' ? 'Private chats with each player.' : 'Private: only you and the other person can read a chat.'}</p>
+    ${canGroup ? `<button class="btn wide" data-act="group-new">👥 New group</button>` : ''}
     <div class="chat-list">${chatPartners()
       .map((p) => {
         const list = chats[p.id] || [];
         const last = list[list.length - 1];
         const n = unread(p.id);
         return `<button class="chat-row ${p.st ? 'st' : ''}" data-act="thread" data-id="${esc(p.id)}">
-          <span class="avatar">${p.st ? '🕯️' : esc(p.name[0] || '?')}</span>
-          <span class="chat-mid"><b>${esc(p.name)}${p.dead ? ' ☠' : ''}</b><span class="muted small">${last ? esc((last.from === meChatId() ? 'You: ' : '') + last.text) : 'No messages yet'}</span></span>
+          <span class="avatar ${p.group ? 'grp' : ''}">${p.st ? '🕯️' : p.group ? '👥' : esc(p.name[0] || '?')}</span>
+          <span class="chat-mid"><b>${esc(p.name)}${p.dead ? ' ☠' : ''}</b><span class="muted small">${last ? esc((last.from === meChatId() ? 'You: ' : p.group ? `${nameOf(last.from)}: ` : '') + last.text) : p.group ? esc(p.members.filter((m) => m.id !== myId).map((m) => m.name).join(', ')) : 'No messages yet'}</span></span>
           ${n ? `<b class="badge">${n}</b>` : ''}
         </button>`;
       })
@@ -696,7 +704,7 @@ function updateThread(scrollDown) {
   const mine = meChatId();
   box.innerHTML =
     (chats[thread] || [])
-      .map((m) => `<div class="msg ${m.from === mine ? 'me' : ''}"><span>${esc(m.text)}</span><time>${new Date(m.t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>`)
+      .map((m) => `<div class="msg ${m.from === mine ? 'me' : ''}">${String(thread).startsWith('g:') && m.from !== mine ? `<b class="msg-from">${esc(nameOf(m.from))}</b>` : ''}<span>${esc(m.text)}</span><time>${new Date(m.t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>`)
       .join('') || `<p class="muted center small">Say something…</p>`;
   if (scrollDown || atBottom) box.scrollTop = box.scrollHeight;
   markRead(thread);
@@ -1649,6 +1657,43 @@ const ACT = {
   thread: (b) => {
     thread = b.dataset.id;
     render();
+  },
+  'group-new': () => {
+    const others = me.seats.filter((x) => x.playerId && x.playerId !== myId);
+    let pick = [];
+    const draw = () =>
+      openSheet(
+        `<h2 class="h">👥 New group</h2>
+         <p class="hint">Only the players you pick see this group. The storyteller can't read it.</p>
+         <label class="field">Name (optional)<input id="group-name" maxlength="30" autocomplete="off" value="${esc($('#group-name')?.value || '')}"></label>
+         <h3 class="sub">With</h3>
+         <div class="chips">${others.map((x) => `<button class="chip ${pick.includes(x.playerId) ? 'on' : ''}" data-gp="${esc(x.playerId)}">${esc(x.name)}</button>`).join('')}</div>
+         <div class="row sticky-foot"><button class="btn primary" data-gcreate="1" ${pick.length >= 2 ? '' : 'disabled'}>Start the group${pick.length >= 2 ? ` (${pick.length + 1})` : ': pick 2 or more'}</button></div>`,
+        async (e) => {
+          const b = e.target.closest('button');
+          if (!b) return;
+          if (b.dataset.gp) {
+            pick = pick.includes(b.dataset.gp) ? pick.filter((x) => x !== b.dataset.gp) : [...pick, b.dataset.gp];
+            return draw();
+          }
+          if (b.dataset.gcreate) {
+            const res = await call('botc:groupCreate', { name: $('#group-name').value, members: pick });
+            if (!res?.ok) return toast(res?.error || 'Could not start the group');
+            closeSheet();
+            thread = res.id;
+            ptab = 'chats';
+            setTimeout(() => render(true), 300);
+          }
+        }
+      );
+    draw();
+  },
+  'group-leave': async () => {
+    if (!(await confirmSheet(`Leave “${nameOf(thread)}”? You won't see its messages anymore.`, 'Leave'))) return;
+    await call('botc:groupLeave', { id: thread });
+    delete chats[thread];
+    thread = null;
+    render(true);
   },
   'thread-back': () => {
     thread = null;
