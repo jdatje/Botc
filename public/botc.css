@@ -361,3 +361,39 @@ textarea.short { min-height: 140px; }
 .time-up p { font-size: 20px; margin: 0 0 22px; }
 @keyframes time-up-in { from { opacity: 0; } }
 @keyframes time-up-ring { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-18deg); } 75% { transform: rotate(18deg); } }
+
+/* night on phones: storyteller */
+.night li { position: relative; }
+.wake-btn { flex: none; align-self: flex-start; width: 46px; height: 46px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg2); font-size: 22px; cursor: pointer; }
+.pstat { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; padding: 6px 8px; border-radius: 10px; background: var(--bg2); font-size: 14px; }
+.pstat .wait { color: var(--ink2); font-style: italic; }
+.seg { display: flex; gap: 0; margin: 10px 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.seg button { flex: 1; padding: 10px; background: transparent; border: 0; color: var(--ink); font: inherit; cursor: pointer; }
+.seg button.on { background: var(--accent, #c9a45c); color: #1a1208; font-weight: 700; }
+.field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 14px; color: var(--ink2); }
+.field input { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg2); color: var(--ink); font: inherit; font-size: 16px; }
+
+/* night on phones: player */
+.nightscreen { position: fixed; inset: 0; z-index: 90; overflow-y: auto; background: radial-gradient(circle at 50% 30%, #12162a, #05060c 70%); color: #d9d6e8; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 16px; }
+.ns-sleep { text-align: center; opacity: .75; }
+.ns-moon { font-size: 70px; filter: grayscale(.3); }
+.ns-sleep p { font-size: 18px; max-width: 300px; margin: 8px auto 28px; }
+.ns-peek { opacity: .6; }
+.ns-card { width: min(460px, 100%); display: flex; flex-direction: column; gap: 14px; text-align: center; }
+.ns-wake { margin: 0; letter-spacing: .25em; text-transform: uppercase; font-size: 13px; color: #c9a45c; }
+.ns-text { font-size: 26px; margin: 0; }
+.ns-number { font-size: 96px; font-weight: 700; line-height: 1; color: #fff; }
+.ns-tokens { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.ns-names { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.ns-names span { padding: 10px 16px; border-radius: 14px; background: rgba(255,255,255,.1); font-size: 20px; font-weight: 700; }
+.ns-players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ns-player { padding: 14px 8px; border-radius: 14px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: inherit; font: inherit; font-size: 17px; cursor: pointer; }
+.ns-player.dead { opacity: .55; }
+.ns-player.on, .ns-char.on { background: #c9a45c; color: #1a1208; border-color: #c9a45c; font-weight: 700; }
+.ns-chars { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.ns-char { padding: 4px; border-radius: 12px; border: 1px solid transparent; background: transparent; color: inherit; cursor: pointer; }
+.ns-grim { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.ns-grim > div { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 10px; background: rgba(255,255,255,.05); }
+.ns-grim > div.dead { opacity: .55; }
+.ns-grim small { display: block; color: #a9a4c0; }
+.night li > div { flex: 1; min-width: 0; }

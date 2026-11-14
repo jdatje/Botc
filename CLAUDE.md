@@ -29,4 +29,8 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 - Test mode (⚙ in the grimoire → 🧪): `?devgrid=1` shows the grimoire, table view and one frame per test player.
   `?dev=<slot>` prefixes localStorage keys so each frame is its own device. Test players = names added by hand
   (`manual`); a frame plays one via `room:dev` (needs the storyteller token), so it also works with Boardpass on.
+- Night on phones: `g.prompts` (botc:prompt / botc:answer / botc:cancelPrompt); a player sees one open prompt at a
+  time in a full-screen `#nightscreen`. 1–2 decoy prompts per night (server timers, `fake`, never shown to the ST or
+  marked to the player). `public/night.js`: per-character suggestions (TB full, others from reminder text), false
+  info when Drunk/Poisoned, follow-ups after answers. Nothing is applied without the storyteller tapping.
 - Test locally: `BASE_PATH=/botc PORT=4100 DATA_DIR=/tmp/x node server.js`.
