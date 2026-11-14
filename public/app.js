@@ -123,6 +123,74 @@ async function hello() {
 }
 socket.on('connect', hello);
 
+// ---------- Push notifications (locked phone, other app) ----------
+// iPhone: only from the app added to the home screen (iOS 16.4+), and the permission must come from a tap.
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const PUSH_OK = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+let pushState = PUSH_OK ? 'off' : IOS && !STANDALONE ? 'ios' : 'none'; // off | on | denied | ios | none
+let pushKey = null;
+const b64 = (s) => Uint8Array.from(atob((s + '='.repeat((4 - (s.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+async function checkPush() {
+  if (!PUSH_OK) return;
+  try {
+    const reg = await navigator.serviceWorker.register('sw.js');
+    pushKey ||= (await (await fetch('push/key', { cache: 'no-store' })).json()).key;
+    const sub = await reg.pushManager.getSubscription();
+    pushState = Notification.permission === 'denied' ? 'denied' : sub && Notification.permission === 'granted' ? 'on' : 'off';
+    // this game needs to know this phone (a new game, or the server forgot it)
+    if (sub && pushState === 'on' && mode === 'player') call('push:subscribe', { sub: sub.toJSON() });
+  } catch (err) {
+    console.warn('push', err);
+  }
+  if (mode === 'player') render(true);
+}
+async function pushOn() {
+  try {
+    const perm = await Notification.requestPermission(); // first thing in the tap: iPhone needs that
+    if (perm !== 'granted') {
+      pushState = perm === 'denied' ? 'denied' : 'off';
+      return render(true);
+    }
+    const reg = await navigator.serviceWorker.ready;
+    pushKey ||= (await (await fetch('push/key', { cache: 'no-store' })).json()).key;
+    const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(pushKey) }));
+    const res = await call('push:subscribe', { sub: sub.toJSON() });
+    pushState = res?.ok ? 'on' : 'off';
+    toast(res?.ok ? '🔔 Alerts on' : 'Could not turn on alerts');
+  } catch (err) {
+    toast('Could not turn on alerts');
+    console.warn('push', err);
+  }
+  render(true);
+}
+async function pushOff() {
+  try {
+    const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+    if (sub) {
+      await call('push:unsubscribe', { endpoint: sub.endpoint });
+      await sub.unsubscribe();
+    }
+  } catch {}
+  pushState = 'off';
+  render(true);
+}
+function alertsCard() {
+  if (pushState === 'none') return '';
+  if (pushState === 'on') return `<p class="alerts-on small">🔔 Alerts on this phone are on · <button class="linkish" data-act="push-off">turn off</button></p>`;
+  const body = {
+    off: `<p>Get a buzz for your turn at night and when the day timer runs out, also with the screen off.</p><button class="btn primary" data-act="push-on">🔔 Turn on alerts</button>`,
+    denied: `<p>Notifications are blocked for this site. Allow them in your phone's settings, then reload.</p>`,
+    ios: `<p>On iPhone, alerts only work from the home screen app:</p><ol><li>Tap <b>Share</b> <span aria-hidden="true">⬆︎</span> below</li><li>Tap <b>Add to Home Screen</b></li><li>Open <b>Clocktower</b> from your home screen and join this game there (code <b>${esc(roomCode() || '')}</b>)</li><li>Tap <b>Turn on alerts</b></li></ol>`,
+  }[pushState];
+  return `<div class="alerts-card"><b>🔔 Alerts on a locked phone</b>${body}</div>`;
+}
+// tell the server whether this page is in view: no push when you're looking at it anyway
+const sendVisible = () => socket.emit('push:visible', { visible: document.visibilityState === 'visible' });
+document.addEventListener('visibilitychange', sendVisible);
+window.addEventListener('pagehide', () => socket.emit('push:visible', { visible: false }));
+socket.on('connect', sendVisible);
+
 // ---------- Boardpass sign-in (when the server has it on) ----------
 let account = null; // { username } when signed in with Boardpass
 let boardpassUrl = ''; // Boardpass itself: the game picker and the account page
@@ -163,6 +231,7 @@ function enterRoom(res) {
   if (session?.role === 'player' && res.me) {
     me = res.me;
     myId = session.playerId;
+    setTimeout(checkPush, 0);
     return setMode(me.me ? 'player' : 'waiting');
   }
   setMode('public');
@@ -456,7 +525,7 @@ function playerHeader() {
 const P_BODY = {
   token() {
     const m = me.me;
-    if (me.phase === 'setup') return `<div class="center"><div class="tk-back huge"></div><h2 class="h">Waiting for the storyteller</h2><p class="muted">You're in the game (${me.total} ${me.total === 1 ? 'player' : 'players'} so far). Your character arrives here when the game starts.</p><button class="btn small" data-act="leave">Leave this game</button></div>`;
+    if (me.phase === 'setup') return `<div class="center"><div class="tk-back huge"></div><h2 class="h">Waiting for the storyteller</h2><p class="muted">You're in the game (${me.total} ${me.total === 1 ? 'player' : 'players'} so far). Your character arrives here when the game starts.</p>${alertsCard()}<button class="btn small" data-act="leave">Leave this game</button></div>`;
     const r = m.role;
     const dead = m.dead
       ? `<div class="dead-note">☠ You are dead. ${m.ghost ? 'You still have your <b>ghost vote</b>: one vote for the rest of the game.' : 'You have used your ghost vote.'}</div>`
@@ -470,6 +539,7 @@ const P_BODY = {
         </div>
       </div>
       <button class="btn wide" data-act="tab" data-tab="script">📜 All characters on this script</button>
+      ${alertsCard()}
       ${me.reveal ? revealHtml(me) : ''}`;
   },
   square() {
@@ -1495,6 +1565,8 @@ const ACT = {
   },
   reveal: (b) => call('botc:reveal', { on: b.checked }),
   newgame: () => call('botc:newGame'),
+  'push-on': () => pushOn(),
+  'push-off': () => pushOff(),
   wake: (b) => {
     const it = st.nightOrder?.list.find((x) => x.id === b.dataset.step);
     if (!it) return;

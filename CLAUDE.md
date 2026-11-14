@@ -33,4 +33,7 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
   time in a full-screen `#nightscreen`. 1–2 decoy prompts per night (server timers, `fake`, never shown to the ST or
   marked to the player). `public/night.js`: per-character suggestions (TB full, others from reminder text), false
   info when Drunk/Poisoned, follow-ups after answers. Nothing is applied without the storyteller tapping.
+- Web Push (`lib/push.js`, `public/sw.js`, `manifest.webmanifest`): night prompts (decoys too, same text), chat
+  messages, 30 s / time's up. Only sent when none of the player's pages is visible (`push:visible`). iPhone needs the
+  home-screen app (iOS 16.4+) → own storage, so players join again there. VAPID keys from env or DATA_DIR/vapid.json.
 - Test locally: `BASE_PATH=/botc PORT=4100 DATA_DIR=/tmp/x node server.js`.

@@ -400,3 +400,10 @@ textarea.short { min-height: 140px; }
 .ns-label { margin: 6px 0 0; font-size: 13px; letter-spacing: .15em; text-transform: uppercase; color: #c9a45c; }
 .ns-names.big span { font-size: 24px; padding: 12px 22px; background: rgba(160, 30, 30, .35); border: 1px solid rgba(220, 80, 80, .5); }
 .nightback { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 80; padding: 12px 20px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: #12162a; color: #d9d6e8; font: inherit; font-size: 16px; box-shadow: 0 6px 24px rgba(0,0,0,.5); cursor: pointer; }
+
+/* push alerts */
+.alerts-card { margin: 14px 0; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--bg2); text-align: left; display: flex; flex-direction: column; gap: 8px; }
+.alerts-card p, .alerts-card ol { margin: 0; }
+.alerts-card ol { padding-left: 20px; line-height: 1.5; }
+.alerts-on { text-align: center; color: var(--ink2); margin: 12px 0; }
+.linkish { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; font: inherit; cursor: pointer; }
