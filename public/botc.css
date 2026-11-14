@@ -352,3 +352,12 @@ textarea.short { min-height: 140px; }
 .dev-f figcaption a { color: inherit; text-decoration: none; }
 .dev-f iframe { width: 375px; height: 720px; border: 1px solid var(--line); border-radius: 18px; background: var(--bg); }
 .dev-f.wide iframe { width: 560px; }
+
+/* time's up: everyone back to the town square */
+.time-up { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgba(10, 4, 4, .82); backdrop-filter: blur(4px); animation: time-up-in .3s ease-out; }
+.time-up-in { width: min(420px, 100%); text-align: center; padding: 28px 22px; border-radius: 22px; background: var(--panel); border: 2px solid var(--evil); box-shadow: 0 0 60px rgba(160, 20, 20, .5); }
+.time-up-icon { font-size: 64px; animation: time-up-ring 1s ease-in-out 3; }
+.time-up h2 { font-size: 34px; margin: 8px 0 4px; }
+.time-up p { font-size: 20px; margin: 0 0 22px; }
+@keyframes time-up-in { from { opacity: 0; } }
+@keyframes time-up-ring { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-18deg); } 75% { transform: rotate(18deg); } }
