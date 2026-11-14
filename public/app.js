@@ -285,6 +285,7 @@ socket.on('botc:st', (v) => {
   st = v;
   if (prevNight !== v.night) done = new Set();
   if (mode !== 'st') return;
+  setTimeout(killPopup, 0);
   if (prevPhase !== v.phase) {
     if (v.phase === 'night') stab = 'night';
     if (v.phase === 'day') stab = 'grim';
@@ -408,6 +409,7 @@ function render(force) {
   lastBody = key;
   const body = mode === 'st' ? ST_BODY[stab]() : P_BODY[ptab]();
   $('#bd').innerHTML = body;
+  $('#bd').classList.toggle('in-thread', cur === 'chats' && Boolean(thread));
   $('#bd').scrollTop = scroll;
   if (cur === 'chats' && thread) {
     markRead(thread);
@@ -491,7 +493,7 @@ function nightPromptHtml(p) {
       <button class="btn primary big wide" data-n="send" ${nightPick.length ? '' : 'disabled'}>Confirm</button></div>`;
   const seats = me.seats;
   return `<div class="ns-card">${head}${p.count > 1 ? `<p class="muted">Pick ${p.count} · ${nightPick.length}/${p.count}</p>` : ''}
-    <div class="ns-players">${seats.map((x) => `<button class="ns-player ${nightPick.includes(x.id) ? 'on' : ''} ${x.dead ? 'dead' : ''}" data-n="seat" data-id="${x.id}">${esc(x.name)}${x.playerId === myId ? ' (you)' : ''}${x.dead ? ' ☠' : ''}</button>`).join('')}</div>
+    <div class="ns-players">${seats.map((x) => `<button class="ns-player ${nightPick.includes(x.id) ? 'on' : ''} ${x.dead ? 'dead' : ''}" data-n="seat" data-id="${x.id}" ${p.notSelf && x.playerId === myId ? 'disabled' : ''}>${esc(x.name)}${x.playerId === myId ? ' (you)' : ''}${x.dead ? ' ☠' : ''}</button>`).join('')}</div>
     <button class="btn primary big wide" data-n="send" ${nightPick.length === p.count ? '' : 'disabled'}>Confirm</button></div>`;
 }
 async function onNightClick(e) {
@@ -558,17 +560,19 @@ const P_BODY = {
   square() {
     const seats = me.seats;
     if (!seats.length) return `<p class="center muted">No players yet.</p>`;
-    return `<p class="hint">Tap a player to note what you think they are. Only you can see this.</p>
+    return `<p class="hint">Tap a player to note what you think they are: good, evil or a character. Only you can see this.</p>
       <div class="square" data-square>${seats
         .map((s) => {
           const gs = me.guesses[s.id];
           const r = gs?.role ? roleById(gs.role) : null;
+          const al = gs?.align;
           const self = s.playerId === myId;
           const full = me.reveal ? s : null;
           return `<button class="seat ${s.dead ? 'dead' : ''} ${self ? 'self' : ''}" data-act="guess" data-seat="${s.id}">
-            ${full?.role ? token(full.shown && full.shown.id !== full.role.id ? full.role : full.role, { align: full.align, label: true }) : self ? '<span class="tk tk-back mine-back"></span>' : token(r, { label: Boolean(r), cls: r ? 'guess' : '' })}
+            ${full?.role ? token(full.shown && full.shown.id !== full.role.id ? full.role : full.role, { align: full.align, label: true }) : self ? '<span class="tk tk-back mine-back"></span>' : token(r, { label: Boolean(r), cls: `${r ? 'guess' : ''} ${al ? `g-${al}` : ''}` })}
+            ${!full && !self && al ? `<span class="g-mark ${al}">${al === 'evil' ? '😈' : '😇'}</span>` : ''}
             ${s.dead ? `<span class="shroud" title="dead"></span>` : ''}
-            ${s.dead && s.ghost ? `<span class="ghost" title="ghost vote">vote</span>` : ''}
+            ${s.dead && s.ghost ? `<span class="ghost" title="ghost vote">👻 vote</span>` : ''}
             <span class="seat-name">${esc(s.name)}${self ? ' (you)' : ''}</span>
             ${gs?.note ? `<span class="seat-note">${esc(gs.note)}</span>` : ''}
           </button>`;
@@ -590,7 +594,8 @@ const teamName = (t) => ({ townsfolk: 'Townsfolk', outsider: 'Outsider', minion:
 
 function squareMid(v) {
   const timer = v.phase === 'day' ? `<b class="mid-timer" data-timer>${fmt(timeLeft(v.timer))}</b>` : '';
-  return `<span class="mid-phase">${phaseLabel(v)}</span>${timer}<span class="small muted">${v.alive} of ${v.total} alive · ${Math.ceil(v.alive / 2)} votes to execute</span>`;
+  const ghosts = (v.seats || []).filter((s) => s.dead && s.ghost).length;
+  return `<span class="mid-phase">${phaseLabel(v)}</span>${timer}<span class="small muted">${v.alive} of ${v.total} alive · ${Math.ceil(v.alive / 2)} votes to execute</span>${ghosts ? `<span class="mid-ghosts">👻 ${ghosts} ghost vote${ghosts === 1 ? '' : 's'} left</span>` : ''}`;
 }
 
 function scriptHtml(s) {
@@ -678,14 +683,25 @@ function chatsBody() {
       })
       .join('')}</div>`;
 }
+// Android: the keyboard shrinks the screen; keep the newest message in sight
+window.visualViewport?.addEventListener('resize', () => {
+  const box = $('#msgs');
+  if (box) box.scrollTop = box.scrollHeight;
+});
 function updateThread(scrollDown) {
   const box = $('#msgs');
   if (!box) return;
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
   const mine = meChatId();
+  let lastPh = null;
+  const phName = (ph) => (/^n\d+$/.test(ph) ? (ph === 'n1' ? 'First night' : `Night ${ph.slice(1)}`) : /^d\d+$/.test(ph) ? `Day ${ph.slice(1)}` : ph === 'setup' ? 'Before the game' : 'After the game');
   box.innerHTML =
     (chats[thread] || [])
-      .map((m) => `<div class="msg ${m.from === mine ? 'me' : ''}"><span>${esc(m.text)}</span><time>${new Date(m.t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>`)
+      .map((m) => {
+        const sep = m.ph && m.ph !== lastPh ? `<div class="msg-sep"><span>${m.ph[0] === 'n' ? '🌙' : m.ph[0] === 'd' ? '☀️' : '🕯️'} ${phName(m.ph)}</span></div>` : '';
+        if (m.ph) lastPh = m.ph;
+        return `${sep}<div class="msg ${m.from === mine ? 'me' : ''}"><span>${esc(m.text)}</span><time>${new Date(m.t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>`;
+      })
       .join('') || `<p class="muted center small">Say something…</p>`;
   if (scrollDown || atBottom) box.scrollTop = box.scrollHeight;
   markRead(thread);
@@ -782,7 +798,7 @@ const ST_BODY = {
           ${token(s.role, { align: s.align })}
           ${marker}
           ${s.dead ? `<span class="shroud"></span>` : ''}
-          ${s.dead && s.ghost ? `<span class="ghost">vote</span>` : ''}
+          ${s.dead && s.ghost ? `<span class="ghost">👻 vote</span>` : ''}
           <span class="seat-name">${esc(s.name)}</span>
           ${s.shown ? `<span class="seat-note">sees ${esc(s.shown.name)}</span>` : ''}
           ${s.reminders.length ? `<span class="rems">${s.reminders.map((r) => `<span class="rem">${esc(r.label)}</span>`).join('')}</span>` : ''}
@@ -956,7 +972,7 @@ function renderPublic() {
       ${EMBED ? `<button class="btn small" data-act="leave-room">⇄ Other game</button><button class="btn small" data-act="close">✕ Close</button>` : `<button class="btn small" data-act="leave-room">✕ Leave</button>`}
     </div>
     <div class="square pub-square" data-square>${v.seats
-      .map((s) => `<div class="seat ${s.dead ? 'dead' : ''}">${v.reveal ? token(s.role, { align: s.align }) : `<span class="tk blank"></span>`}${s.dead ? '<span class="shroud"></span>' : ''}${s.dead && s.ghost ? '<span class="ghost">vote</span>' : ''}<span class="seat-name">${esc(s.name)}</span>${v.reveal && s.shown ? `<span class="seat-note">thought: ${esc(s.shown.name)}</span>` : ''}</div>`)
+      .map((s) => `<div class="seat ${s.dead ? 'dead' : ''}">${v.reveal ? token(s.role, { align: s.align }) : `<span class="tk blank"></span>`}${s.dead ? '<span class="shroud"></span>' : ''}${s.dead && s.ghost ? '<span class="ghost">👻 vote</span>' : ''}<span class="seat-name">${esc(s.name)}</span>${v.reveal && s.shown ? `<span class="seat-note">thought: ${esc(s.shown.name)}</span>` : ''}</div>`)
       .join('')}<div class="square-mid">${mid}</div></div>
     ${ccc()}
   </div>`;
@@ -1206,6 +1222,7 @@ function openSeat(seatId) {
        <button class="btn" data-a="shown">👁 Change what they see</button>
        <button class="btn" data-a="align">⚖️ Make ${s.align === 'good' ? 'evil' : 'good'}</button>
        <button class="btn" data-a="showme">🃏 Show "You are"${s.shown && s.reminders.some((r) => r.label === 'Is the Demon') ? `: ${esc(s.role?.name || '')}` : ''}</button>
+       <button class="btn" data-a="testalert" ${s.alerts ? '' : 'disabled'}>🔔 ${s.alerts ? 'Test alert' : 'No alerts on'}</button>
        <button class="btn" data-a="left">◀ Move seat</button>
        <button class="btn" data-a="right">Move seat ▶</button>
      </div>
@@ -1220,6 +1237,10 @@ function openSeat(seatId) {
       if (b.dataset.a === 'dead') await patch({ dead: !s.dead });
       if (b.dataset.a === 'ghost') await patch({ ghost: !s.ghost });
       if (b.dataset.a === 'align') await patch({ align: s.align === 'good' ? 'evil' : 'good' });
+      if (b.dataset.a === 'testalert') {
+        const r = await call('push:testSt', { seatId });
+        return toast(r?.sent?.length ? `🔔 Test sent to ${s.name}` : `${s.name} has no alerts on`);
+      }
       if (b.dataset.a === 'left' || b.dataset.a === 'right') {
         await call('botc:moveSeat', { seatId, dir: b.dataset.a === 'left' ? -1 : 1 });
         return toast(b.dataset.a === 'left' ? '◀ Moved' : 'Moved ▶');
@@ -1259,6 +1280,57 @@ function openSeat(seatId) {
       }
       if (b.dataset.addg) await call('botc:reminder', { seatId, add: { label: b.dataset.addg } });
       openSeat(seatId);
+    }
+  );
+}
+
+// The Demon chose on their phone: ask the storyteller right away who dies (once per answer, per device)
+const killAsked = new Set(JSON.parse(store.get('botc-kill-asked') || '[]'));
+function killPopup() {
+  if (mode !== 'st' || st?.phase !== 'night' || !$('#sheet').hidden) return;
+  const p = (st.prompts || []).find((x) => x.answer && x.kind === 'choose' && roleById(x.step)?.team === 'demon' && !killAsked.has(x.id));
+  if (!p) return;
+  killAsked.add(p.id);
+  store.set('botc-kill-asked', JSON.stringify([...killAsked].slice(-50)));
+  const ctx = nightCtx();
+  const demon = st.seats.find((x) => x.id === p.seatId);
+  const target = p.answer.seats[0] && st.seats.find((x) => x.id === p.answer.seats[0].id);
+  if (!target) return;
+  const off = offReason(demon);
+  // reasons the kill may not happen
+  const why = [
+    off && `${demon.name} (the Demon) is ${off}`,
+    target.reminders.some((r) => /safe|protect/i.test(r.label)) && `${target.name} is protected (${target.reminders.find((r) => /safe|protect/i.test(r.label)).label})`,
+    target.role?.id === 'soldier' && !offReason(target) && `${target.name} is the Soldier`,
+    target.dead && `${target.name} is already dead`,
+    target.id === demon.id && 'The Demon chose themselves: a Minion becomes the Demon (starpass)',
+    target.role?.id === 'mayor' && !offReason(target) && `${target.name} is the Mayor: you may make another player die instead`,
+  ].filter(Boolean);
+  openSheet(
+    `<h2 class="h">🗡 ${esc(roleById(p.step)?.name || 'The Demon')} (${esc(demon?.name || '?')}) chose ${esc(target.name)}</h2>
+     ${why.length ? `<ul class="warn-list">${why.map((w) => `<li>⚠ ${esc(w)}</li>`).join('')}</ul>` : `<p class="hint">Nothing in the grimoire stops this kill.</p>`}
+     <p class="hint">Who dies tonight?</p>
+     <div class="row">
+       ${target.dead ? '' : `<button class="btn ${why.length ? '' : 'primary'} big" data-k="${target.id}">☠ ${esc(target.name)} dies</button>`}
+       <button class="btn ${why.length ? 'primary' : ''} big" data-k="none">Nobody dies</button>
+       <button class="btn big" data-k="other">Someone else…</button>
+     </div>`,
+    async (e) => {
+      const b = e.target.closest('[data-k]');
+      if (!b) return;
+      if (b.dataset.k === 'none') return closeSheet();
+      if (b.dataset.k === 'other') {
+        return openSheet(`<h2 class="h">Who dies instead?</h2><div class="chips">${st.seats.filter((x) => !x.dead).map((x) => `<button class="chip" data-k2="${x.id}">${esc(x.name)}</button>`).join('')}</div>`, async (e2) => {
+          const c = e2.target.closest('[data-k2]');
+          if (!c) return;
+          await call('botc:seat', { seatId: c.dataset.k2, patch: { dead: true } });
+          closeSheet();
+          toast('Marked dead');
+        });
+      }
+      await call('botc:seat', { seatId: b.dataset.k, patch: { dead: true } });
+      closeSheet();
+      toast(`☠ ${target.name} marked dead`);
     }
   );
 }
@@ -1317,7 +1389,7 @@ function openCompose(step, sugs, idx) {
           if (fresh[idx]) return openCompose(step, fresh, idx);
           return toast('No other suggestion for this one');
         } else if (d.send) {
-          const res = await call('botc:prompt', { seatIds: c.to, step: step.id, kind: c.kind, text: c.text, count: c.count, target: c.target, roles: c.roles, seats: c.seats, number: c.number, grim: c.grim, seatsLabel: c.seatsLabel, rolesLabel: c.rolesLabel });
+          const res = await call('botc:prompt', { seatIds: c.to, step: step.id, kind: c.kind, text: c.text, count: c.count, target: c.target, roles: c.roles, seats: c.seats, number: c.number, grim: c.grim, seatsLabel: c.seatsLabel, rolesLabel: c.rolesLabel, notSelf: c.notSelf });
           if (!res?.ok) return toast(res?.error || 'Could not send');
           toast(`📱 Sent to ${c.to.map(seatName).join(', ')}`);
           if (sugs.length > 1 && idx + 1 < sugs.length) return openCompose(step, sugs, idx + 1);
@@ -1458,6 +1530,9 @@ function openSettings() {
        <div class="share"><img src="qr/${esc(roomCode())}.png" alt="QR code to join" class="share-qr">
          <div><p>Players join with code <b class="big-code">${esc(roomCode())}</b><br><span class="small muted">${esc(joinUrl())}</span></p>
          <p class="small">Storyteller code: <b>${esc(stCode || '—')}</b><br><span class="muted">To open the grimoire on a second device too. Keep it secret.</span></p></div></div>
+       <h3 class="sub">Alerts on phones</h3>
+       <p class="hint">${st.seats.filter((x) => x.alerts).length} of ${st.seats.filter((x) => x.playerId).length} players have alerts on.</p>
+       <button class="btn wide" data-x="test-all">🔔 Send a test alert to every player</button>
        <h3 class="sub">Town square</h3>
        <div class="seg"><button class="${st.layout !== 'table' ? 'on' : ''}" data-x="layout-circle">⭕ Circle</button><button class="${st.layout === 'table' ? 'on' : ''}" data-x="layout-table">▭ Long table</button></div>
        <p class="hint">Match the real table. To change the order, tap a player in the Grimoire and use ◀ ▶.</p>
@@ -1483,6 +1558,10 @@ function openSettings() {
       if (b.dataset.min) {
         await call('botc:timer', { action: 'minutes', minutes: Number(b.dataset.min) });
         return openSettings();
+      }
+      if (b.dataset.x === 'test-all') {
+        const r = await call('push:testSt', {});
+        return toast(r?.ok ? `🔔 Sent to ${r.sent.length}${r.off.length ? ` · no alerts on: ${r.off.join(', ')}` : ''}` : 'Could not send');
       }
       if (b.dataset.x === 'layout-circle' || b.dataset.x === 'layout-table') {
         await call('botc:layout', { shape: b.dataset.x.slice(7) });
@@ -1586,13 +1665,21 @@ const ACT = {
     const cur = me.guesses[seat.id] || {};
     openSheet(
       `<h2 class="h">What is ${esc(seat.name)}?</h2>
+       <div class="seg"><button class="${cur.align === 'good' ? 'on' : ''}" data-align="good">😇 Good</button><button class="${!cur.align ? 'on' : ''}" data-align="">? Not sure</button><button class="${cur.align === 'evil' ? 'on' : ''}" data-align="evil">😈 Evil</button></div>
        <form class="inline-form" id="guess-note"><input id="guess-note-in" maxlength="200" placeholder="Note, e.g. claims Chef, said 1" value="${esc(cur.note || '')}" autocomplete="off"><button class="btn small" type="submit">Save note</button></form>
        <button class="btn small" data-clear="1">Clear</button>
        ${rolePicker(me.script.roles, { selected: [cur.role], title: '' })}`,
       async (e) => {
+        const al = e.target.closest('[data-align]');
+        if (al) {
+          const res = await call('botc:guess', { seatId: seat.id, role: cur.role, note: $('#guess-note-in').value, align: al.dataset.align || null });
+          if (res?.guesses) me.guesses = res.guesses;
+          closeSheet();
+          return render();
+        }
         const r = e.target.closest('[data-role],[data-clear]');
         if (!r) return;
-        const res = await call('botc:guess', r.dataset.clear ? { seatId: seat.id } : { seatId: seat.id, role: r.dataset.role, note: $('#guess-note-in').value });
+        const res = await call('botc:guess', r.dataset.clear ? { seatId: seat.id } : { seatId: seat.id, role: r.dataset.role, note: $('#guess-note-in').value, align: cur.align });
         if (res?.guesses) me.guesses = res.guesses;
         closeSheet();
         render();
@@ -1600,7 +1687,7 @@ const ACT = {
     );
     $('#guess-note').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const res = await call('botc:guess', { seatId: seat.id, role: (me.guesses[seat.id] || {}).role, note: $('#guess-note-in').value });
+      const res = await call('botc:guess', { seatId: seat.id, role: (me.guesses[seat.id] || {}).role, note: $('#guess-note-in').value, align: (me.guesses[seat.id] || {}).align });
       if (res?.guesses) me.guesses = res.guesses;
       closeSheet();
       render();
