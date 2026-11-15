@@ -462,3 +462,18 @@ textarea.short { min-height: 140px; }
 
 .show-send { margin: 14px auto 4px; }
 .small-card { font-size: 18px; margin: 4px 0 10px; }
+
+/* grimoire reminders: small tokens inside the circle, stacking towards the middle */
+.rtks { position: absolute; left: 50%; top: calc(var(--tk) / 2); width: 0; height: 0; pointer-events: none; z-index: 3; --rs: calc(var(--tk) * .5); }
+.rtk {
+  /* start just outside the token (and past the name when the middle is below), then one step per reminder */
+  --d: calc(var(--tk) * .5 + var(--rs) * .62 + max(0, var(--uy, 0)) * var(--tk) * .32 + var(--i) * var(--rs) * 1.04);
+  position: absolute; left: 0; top: 0; width: var(--rs); height: var(--rs); border-radius: 50%;
+  transform: translate(-50%, -50%) translate(calc(var(--ux, 0) * var(--d)), calc(var(--uy, 0) * var(--d)));
+  background: radial-gradient(circle at 50% 35%, #fbf1d6, #e6d3a6); border: 2px solid #2a1b10; box-shadow: 0 2px 6px rgba(0, 0, 0, .7);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow: hidden;
+}
+.rtk img { width: 56%; height: 56%; object-fit: contain; margin-top: 4%; pointer-events: none; }
+.rtk b { width: 92%; margin-top: -4%; font-size: clamp(6px, calc(var(--rs) * .15), 10px); line-height: 1; text-align: center; color: #1a1208; font-weight: 800; text-transform: uppercase; letter-spacing: -.3px; overflow-wrap: anywhere; text-shadow: 0 0 2px #fbf1d6, 0 0 2px #fbf1d6; }
+.rtk:not(:has(img)) { justify-content: center; }
+.rtk:not(:has(img)) b { margin: 0; font-size: clamp(7px, calc(var(--rs) * .18), 11px); }

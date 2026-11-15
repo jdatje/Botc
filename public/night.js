@@ -70,7 +70,7 @@ const KNOWN = {
   },
   fortuneteller: () => ({ kind: 'choose', text: 'Choose 2 players: is one of them the Demon?', count: 2, target: 'player' }),
   undertaker(ctx, a, off) {
-    const ex = ctx.seats.find((s) => s.dead && s.diedAt === `d${ctx.night - 1}` && s.reminders?.some((r) => /execut/i.test(r.label))) || ctx.seats.find((s) => s.dead && s.diedAt === `d${ctx.night - 1}`);
+    const ex = ctx.seats.find((s) => s.dead && s.diedAt === `d${ctx.night - 1}` && s.reminders?.some((r) => /execut|died today/i.test(r.label))) || ctx.seats.find((s) => s.dead && s.diedAt === `d${ctx.night - 1}`);
     if (!ex) return { kind: 'info', text: 'Nobody was executed today', note: 'Nobody executed today: the Undertaker doesn’t wake.' };
     const r = off ? pick(ctx.script.filter((x) => x.id !== ex.role?.id)) : ex.role;
     return { kind: 'info', text: `The character of ${ex.name}, executed today`, roles: r ? [r.id] : [] };

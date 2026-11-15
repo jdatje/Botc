@@ -824,7 +824,7 @@ const ST_BODY = {
           ${s.dead ? `<span class="shroud ${s.ghost ? '' : 'voted'}"></span>` : ''}
           <span class="seat-name">${esc(s.name)}</span>
           ${s.shown ? `<span class="seat-note">sees ${esc(s.shown.name)}</span>` : ''}
-          ${s.reminders.length ? `<span class="rems">${s.reminders.map((r) => `<span class="rem">${esc(r.label)}</span>`).join('')}</span>` : ''}
+          ${s.reminders.length ? `<span class="rtks">${s.reminders.map((r, i) => { const rr = roleById(r.role); return `<span class="rtk" style="--i:${i}" title="${esc(rr?.name || '')}: ${esc(r.label)}">${rr ? `<img src="${esc(iconOf(rr, ['minion', 'demon'].includes(rr.team) ? 'evil' : 'good'))}" alt="" draggable="false">` : ''}<b>${esc(r.label)}</b></span>`; }).join('')}</span>` : ''}
         </button>`;
       })
       .join('')}
@@ -1106,6 +1106,12 @@ function renderWaiting() {
 }
 
 // Town square: seats on an oval, wide in landscape and tall in portrait
+// unit vector from a seat to the middle of the town square (reminder tokens stack that way)
+function inward(el, dx, dy) {
+  const l = Math.hypot(dx, dy) || 1;
+  el.style.setProperty('--ux', (dx / l).toFixed(3));
+  el.style.setProperty('--uy', (dy / l).toFixed(3));
+}
 function layoutSquares() {
   document.querySelectorAll('[data-square]').forEach((sq) => {
     const seats = [...sq.querySelectorAll('.seat')];
@@ -1122,6 +1128,7 @@ function layoutSquares() {
         const a = -Math.PI / 2 + (2 * Math.PI * i) / n;
         el.style.left = `${50 + 41 * Math.cos(a)}%`;
         el.style.top = `${50 + 40 * Math.sin(a)}%`;
+        inward(el, -0.41 * w * Math.cos(a), -0.4 * h * Math.sin(a));
       });
       return;
     }
@@ -1143,6 +1150,7 @@ function layoutSquares() {
       else [x, y] = [-A + (d - 2 * B), -B];
       el.style.left = `${50 + (x / w) * 100}%`;
       el.style.top = `${50 + (y / h) * 100}%`;
+      inward(el, -x, -y);
     });
   });
 }

@@ -43,4 +43,7 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 - Town layout: `g.layout` circle | table; `botc:moveSeat` any phase.
 - Group chats: `g.groups` (id → { name, members, by }), messages in `g.chats['g:<id>']`. Only members see a group
   (not the storyteller); locked at night like player chats; leaving with <2 members deletes it.
+- Grimoire reminders: small tokens (`.rtk`) stacked from each seat towards the middle (`--ux/--uy` set in
+  layoutSquares). Auto reminders: Poisoner/Monk/Butler on answer; Washerwoman/Librarian/Investigator on the two
+  shown players (team label + Wrong); Undertaker "Died Today" on a day death (cleared at the next dawn).
 - Test locally: `BASE_PATH=/botc PORT=4100 DATA_DIR=/tmp/x node server.js`.
