@@ -82,6 +82,8 @@ const NL = {
   'Marked dead': 'Dood gemarkeerd', 'Nothing to send for this step': 'Niets te versturen voor deze stap', 'No other suggestion for this one': 'Geen andere suggestie hiervoor',
   'Import a script': 'Script importeren', '⬆️ Import a script (JSON)': '⬆️ Script importeren (JSON)', 'Test mode': 'Testmodus', '🧪 Test mode': '🧪 Testmodus',
   'How many players?': 'Hoeveel spelers?',
+  'From the storyteller': 'Van de verteller', 'Got it': 'Begrepen', 'Card from you': 'Kaart van jou',
+  '📱 Send to a player': '📱 Naar een speler sturen', '📱 Send this card': '📱 Deze kaart sturen', To: 'Naar', 'Show full screen': 'Volledig scherm tonen',
   'My notes': 'Mijn notities', 'Game record': 'Spelverslag', 'After the game': 'Na het spel', Setup: 'Opzet',
   'Everything that happened, night by night: what each player chose and exactly what they were shown, deaths, and your own lines.': 'Alles wat er gebeurde, nacht na nacht: wat elke speler koos en precies wat die te zien kreeg, sterfgevallen en je eigen regels.',
   'Add to the record, e.g. Test 3 claimed Chef': 'Toevoegen aan het verslag, bijv. Test 3 claimde Chef',

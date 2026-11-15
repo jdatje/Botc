@@ -427,8 +427,8 @@ let nightPick = [];
 let nightHidden = false; // "look at my token" until the next prompt
 let nightKey = '';
 function updateNight() {
-  const p = mode === 'player' && me?.phase === 'night' && me.me ? me.prompt : undefined;
-  const on = mode === 'player' && me?.phase === 'night' && me.me;
+  const p = mode === 'player' && me?.me ? me.prompt || undefined : undefined;
+  const on = mode === 'player' && me?.me && (me.phase === 'night' || p);
   let el = $('#nightscreen');
   if (!on) {
     el?.remove();
@@ -475,7 +475,8 @@ function updateNight() {
       <button class="btn small ns-peek" data-n="hide">Look at my token</button></div>`;
 }
 function nightPromptHtml(p) {
-  const head = `<p class="ns-wake">Your turn</p><h2 class="h ns-text">${esc(p.text || (p.kind === 'info' ? 'You learn' : 'Choose'))}</h2>`;
+  const day = me.phase !== 'night';
+  const head = `<p class="ns-wake">${day ? 'From the storyteller' : 'Your turn'}</p><h2 class="h ns-text">${esc(p.text || (p.kind === 'info' ? 'You learn' : 'Choose'))}</h2>`;
   if (p.kind === 'info') {
     return `<div class="ns-card">${head}
       ${p.number !== null ? `<div class="ns-number">${p.number}</div>` : ''}
@@ -485,7 +486,7 @@ function nightPromptHtml(p) {
         return p.seatsLabel ? seats + roles : roles + seats;
       })()}
       ${p.grim ? `<div class="ns-grim">${p.grim.map((x) => `<div class="${x.dead ? 'dead' : ''}">${token(x.role, { size: 'sm', align: x.align, label: false })}<span><b>${esc(x.name)}</b> ${esc(x.role?.name || '')}${x.shown ? ` (sees ${esc(x.shown.name)})` : ''}${x.align === 'evil' && !['minion', 'demon'].includes(x.role?.team) ? ' · evil' : ''}${x.reminders.length ? `<small>${x.reminders.map(esc).join(', ')}</small>` : ''}</span></div>`).join('')}</div>` : ''}
-      <button class="btn primary big wide" data-n="ok">Got it: back to sleep</button></div>`;
+      <button class="btn primary big wide" data-n="ok">${day ? 'Got it' : 'Got it: back to sleep'}</button></div>`;
   }
   if (p.target === 'yesno')
     return `<div class="ns-card">${head}<div class="grid2"><button class="btn big" data-n="yes">Yes</button><button class="btn big" data-n="no">No</button></div></div>`;
@@ -826,7 +827,7 @@ const ST_BODY = {
   },
   night() {
     const v = st;
-    if (!v.nightOrder) return `<div class="center"><p class="h">🌙</p><p class="muted">The night order shows up here at night, with only the characters in play.</p></div>${historyHtml(v.history, true)}`;
+    if (!v.nightOrder) return `<div class="center"><p class="h">🌙</p><p class="muted">The night order shows up here at night, with only the characters in play.</p></div><h3 class="h">Game record</h3><div id="log">${logItems()}</div>`;
     const list = v.nightOrder.list;
     const ctx = nightCtx();
     return `<h2 class="h">${v.nightOrder.first ? 'First night' : `Night ${v.night}`}</h2><p class="hint">📱 wakes that player on their phone; you can change what's sent first. Or do it in person and tap the step when it's done.</p>
@@ -853,7 +854,8 @@ const ST_BODY = {
             ${canWake ? `<button class="wake-btn" data-act="wake" data-step="${esc(it.id)}" aria-label="Wake on their phone">📱</button>` : ''}
           </li>`;
         })
-        .join('')}</ol>${v.nightOrder.skipped?.length ? `<p class="hint">Skipped (dead): ${esc(v.nightOrder.skipped.join(', '))}</p>` : ''}`;
+        .join('')}</ol>${v.nightOrder.skipped?.length ? `<p class="hint">Skipped (dead): ${esc(v.nightOrder.skipped.join(', '))}</p>` : ''}
+        <h3 class="h">Game record</h3><div id="log">${logItems()}</div>`;
   },
   script: () => scriptHtml(st.script),
   chats: () => chatsBody(),
@@ -871,7 +873,7 @@ function logItems() {
   const time = (t) => new Date(t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const items = [
     ...st.log.map((l) => ({ t: l.t, phase: l.phase, html: `${/ died$/.test(l.text) ? '☠ ' : ''}${esc(l.text)}`, cls: 'rec-log' })),
-    ...(st.history || []).map((h) => ({ t: h.t || 0, phase: `Night ${h.night}`, html: recordLine(h), cls: `rec-ab ${h.kind}` })),
+    ...(st.history || []).map((h) => ({ t: h.t || 0, phase: h.phase || `Night ${h.night}`, html: recordLine(h), cls: `rec-ab ${h.kind}` })),
   ].sort((a, b) => a.t - b.t);
   if (!items.length) return '<p class="muted center">Nothing yet. Results show up here as soon as you send them.</p>';
   const phases = [];
@@ -883,7 +885,7 @@ function logItems() {
   const label = (n) => (n === 'Night 1' ? 'First night' : n === 'setup' ? 'Setup' : n === 'ended' ? 'After the game' : n);
   return phases
     .reverse()
-    .map((ph, i) => `<details class="rec-phase" ${i < 3 ? 'open' : ''}><summary>${/^Night/.test(ph.name) ? '🌙' : /^Day/.test(ph.name) ? '☀️' : '🕯️'} ${esc(label(ph.name))}</summary><ul>${ph.items.map((it) => `<li class="${it.cls}"><span class="rec-time">${time(it.t)}</span><div>${it.html}</div></li>`).join('')}</ul></details>`)
+    .map((ph, i) => `<details class="rec-phase" open><summary>${/^Night/.test(ph.name) ? '🌙' : /^Day/.test(ph.name) ? '☀️' : '🕯️'} ${esc(label(ph.name))}</summary><ul>${ph.items.map((it) => `<li class="${it.cls}"><span class="rec-time">${time(it.t)}</span><div>${it.html}</div></li>`).join('')}</ul></details>`)
     .join('');
 }
 function updateLog() {
@@ -1195,12 +1197,47 @@ function askPin() {
 
 // ---------- Info cards ("Show to player") ----------
 const CARDS = ['This is the Demon', 'These are your minions', 'These characters are not in play', 'You are', 'This player is', 'This character selected you', 'You are poisoned', 'Use your ability?', 'Did you nominate today?', 'Did you vote today?', 'Make a choice'];
+let shownCard = null;
 function showCard(text, roles = [], align) {
   const el = $('#show');
-  el.innerHTML = `<div class="show-in"><p class="show-text">${esc(text)}</p><div class="show-tokens">${roles.map((r) => token(r, { align, size: 'huge' })).join('')}</div><p class="muted small">Tap to close</p></div>`;
+  shownCard = { text, roles: roles.filter(Boolean) };
+  const canSend = mode === 'st' && ['night', 'day'].includes(st?.phase);
+  el.innerHTML = `<div class="show-in"><p class="show-text">${esc(text)}</p><div class="show-tokens">${roles.map((r) => token(r, { align, size: 'huge' })).join('')}</div>
+    ${canSend ? `<button class="btn show-send" data-send-card="1">📱 Send to a player</button>` : ''}<p class="muted small">Tap to close</p></div>`;
   el.hidden = false;
 }
-$('#show').addEventListener('click', () => ($('#show').hidden = true));
+$('#show').addEventListener('click', (e) => {
+  $('#show').hidden = true;
+  if (e.target.closest('[data-send-card]') && shownCard) sendCard(shownCard.text, shownCard.roles.map((r) => r.id));
+});
+// a card from the storyteller on a player's phone (by night or by day)
+function sendCard(text, roleIds) {
+  let to = [];
+  const draw = () =>
+    openSheet(
+      `<h2 class="h">📱 Send this card</h2>
+       <p class="show-text small-card">${esc(text)}</p>
+       <div class="row">${roleIds.map((id) => token(roleById(id), { size: 'sm' })).join('')}</div>
+       <h3 class="sub">To</h3>
+       <div class="chips">${st.seats.filter((s) => s.playerId).map((s) => `<button class="chip ${to.includes(s.id) ? 'on' : ''}" data-to="${s.id}">${esc(s.name)}</button>`).join('')}</div>
+       <div class="row sticky-foot"><button class="btn primary" data-send="1" ${to.length ? '' : 'disabled'}>📱 Send</button></div>`,
+      async (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        if (b.dataset.to) {
+          to = to.includes(b.dataset.to) ? to.filter((x) => x !== b.dataset.to) : [...to, b.dataset.to];
+          return draw();
+        }
+        if (b.dataset.send) {
+          const res = await call('botc:prompt', { seatIds: to, step: 'card', kind: 'info', text, roles: roleIds });
+          if (!res?.ok) return toast(res?.error || 'Could not send');
+          closeSheet();
+          toast(`📱 Sent to ${to.map((id) => st.seats.find((s) => s.id === id)?.name).join(', ')}`);
+        }
+      }
+    );
+  draw();
+}
 
 function openCards() {
   let text = CARDS[0];
@@ -1213,7 +1250,7 @@ function openCards() {
        <div class="chips">${CARDS.map((c) => `<button class="chip ${c === text ? 'on' : ''}" data-card="${esc(c)}">${esc(c)}</button>`).join('')}</div>
        <p class="hint">Add characters to show with it (optional):</p>
        <div class="row">${picked.map((id) => token(all.find((r) => r.id === id), { size: 'sm' })).join('') || '<span class="muted small">none</span>'}</div>
-       <button class="btn primary wide" data-go="1">Show full screen</button>
+       <div class="row"><button class="btn primary" data-go="1">Show full screen</button>${['night', 'day'].includes(st.phase) ? `<button class="btn" data-send-it="1">📱 Send to a player</button>` : ''}</div>
        ${rolePicker(st.script.roles, { selected: picked, title: 'Characters' })}`,
       (e) => {
         const b = e.target.closest('button');
@@ -1221,6 +1258,10 @@ function openCards() {
         if (b.dataset.quick === 'bluffs') {
           closeSheet();
           return showCard('These characters are not in play', st.bluffs);
+        }
+        if (b.dataset.sendIt) {
+          closeSheet();
+          return sendCard(text, picked);
         }
         if (b.dataset.card) text = b.dataset.card;
         if (b.dataset.role) picked = picked.includes(b.dataset.role) ? picked.filter((x) => x !== b.dataset.role) : [...picked, b.dataset.role].slice(-4);
