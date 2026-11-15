@@ -624,6 +624,14 @@ function rulesHtml() {
 
 // one ability result: who, what they chose or exactly what they were shown
 function recordLine(h) {
+  // older entries: add the character from the grimoire as it is now
+  if (!h.tagged && mode === 'st') {
+    const tag = (n) => {
+      const x = st.seats.find((y) => y.name === n);
+      return x?.role ? `${n} (${x.role.name})` : n;
+    };
+    h = { ...h, seats: (h.seats || []).map(tag), chose: h.kind === 'choose' ? (h.chose || []).map(tag) : h.chose };
+  }
   const who = `<b>${esc(h.step)}</b> <span class="muted">${esc(h.who)}${h.really ? ` · really ${esc(h.really)}` : ''}</span>`;
   if (h.kind === 'choose') return `${who} chose <b>${esc(h.chose.join(', ') || 'nothing')}</b>`;
   const shown = [
