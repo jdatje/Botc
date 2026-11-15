@@ -868,24 +868,35 @@ const ST_BODY = {
       <div id="log">${logItems()}</div>`;
   },
 };
-// the record: log lines + ability results, grouped per night/day, newest first
+// the record: log lines + ability results, grouped per night/day in game order (newest on top)
 function logItems() {
-  const time = (t) => new Date(t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const time = (t) => (t ? new Date(t - offset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+  // game order: setup, first night, day 1, night 2, day 2, … after the game
+  const rank = (ph) => {
+    const m = /^(Night|Day) (\d+)$/.exec(ph || '');
+    if (m) return m[1] === 'Night' ? 2 * Number(m[2]) - 1 : 2 * Number(m[2]);
+    return ph === 'setup' ? -1 : 1e6;
+  };
   const items = [
-    ...st.log.map((l) => ({ t: l.t, phase: l.phase, html: `${/ died$/.test(l.text) ? '☠ ' : ''}${esc(l.text)}`, cls: 'rec-log' })),
-    ...(st.history || []).map((h) => ({ t: h.t || 0, phase: h.phase || `Night ${h.night}`, html: recordLine(h), cls: `rec-ab ${h.kind}` })),
-  ].sort((a, b) => a.t - b.t);
+    ...st.log.map((l, i) => ({ t: l.t, i, phase: l.phase, html: `${/ died$/.test(l.text) ? '☠ ' : ''}${esc(l.text)}`, cls: 'rec-log' })),
+    ...(st.history || []).map((h, i) => ({ t: h.t || 0, i: 1e5 + i, phase: h.phase || `Night ${h.night}`, html: recordLine(h), cls: `rec-ab ${h.kind}` })),
+  ];
   if (!items.length) return '<p class="muted center">Nothing yet. Results show up here as soon as you send them.</p>';
-  const phases = [];
+  const phases = new Map();
   for (const it of items) {
-    let ph = phases.find((x) => x.name === it.phase);
-    if (!ph) phases.push((ph = { name: it.phase, items: [] }));
-    ph.items.push(it);
+    if (!phases.has(it.phase)) phases.set(it.phase, []);
+    phases.get(it.phase).push(it);
   }
   const label = (n) => (n === 'Night 1' ? 'First night' : n === 'setup' ? 'Setup' : n === 'ended' ? 'After the game' : n);
-  return phases
-    .reverse()
-    .map((ph, i) => `<details class="rec-phase" open><summary>${/^Night/.test(ph.name) ? '🌙' : /^Day/.test(ph.name) ? '☀️' : '🕯️'} ${esc(label(ph.name))}</summary><ul>${ph.items.map((it) => `<li class="${it.cls}"><span class="rec-time">${time(it.t)}</span><div>${it.html}</div></li>`).join('')}</ul></details>`)
+  return [...phases.entries()]
+    .sort((a, b) => rank(b[0]) - rank(a[0]))
+    .map(([name, list]) => {
+      // within a night or day: by time; older entries without a time keep their own order, after the first line
+      const first = Math.min(...list.filter((x) => x.t).map((x) => x.t), Infinity);
+      const key = (x) => (x.t ? x.t : (first === Infinity ? 0 : first) + 1 + x.i / 1e6);
+      list.sort((x, y) => key(x) - key(y));
+      return `<details class="rec-phase" open><summary>${/^Night/.test(name) ? '🌙' : /^Day/.test(name) ? '☀️' : '🕯️'} ${esc(label(name))}</summary><ul>${list.map((it) => `<li class="${it.cls}"><span class="rec-time">${time(it.t)}</span><div>${it.html}</div></li>`).join('')}</ul></details>`;
+    })
     .join('');
 }
 function updateLog() {
