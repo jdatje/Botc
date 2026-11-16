@@ -64,6 +64,10 @@ const pageGate = async (req, res, next) => {
 
 const site = express.Router();
 site.use(compression());
+site.use((_req, res, next) => {
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' });
+  next();
+});
 // version: the git commit the image was built from (set by the deploy pipeline)
 site.get('/health', (_req, res) => res.json({ ok: true, version: process.env.GIT_SHA || 'dev', login: Boolean(boardpass), ...game.stats() }));
 // who am I (the start page uses this to skip the name field)
@@ -107,10 +111,14 @@ site.post('/host/house', express.json({ limit: '4kb' }), (req, res) => {
 });
 // QR code with the join link for a room
 site.get('/qr/:code.png', async (req, res) => {
-  const code = String(req.params.code).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
-  const base = (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}${BASE}`).replace(/\/$/, '');
-  const png = await QRCode.toBuffer(`${base}/?code=${code}`, { margin: 1, width: 360, color: { dark: '#111111', light: '#FFFFFF' } });
-  res.type('png').set('Cache-Control', 'public, max-age=86400').send(png);
+  try {
+    const code = String(req.params.code).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    const png = await QRCode.toBuffer(`${publicBase(req)}/?code=${code}`, { margin: 1, width: 360, color: { dark: '#111111', light: '#FFFFFF' } });
+    res.type('png').set('Cache-Control', 'public, max-age=86400').send(png);
+  } catch (err) {
+    console.error('QR:', err.message);
+    res.status(500).end();
+  }
 });
 // Web Push: the public key for the browser's subscription
 site.get('/push/key', (_req, res) => res.set('Cache-Control', 'no-store').json({ key: push.publicKey() }));
@@ -138,9 +146,13 @@ if (boardpass) {
 }
 
 io.on('connection', (socket) => {
-  const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0].trim() || socket.handshake.address;
+  // behind nginx the last X-Forwarded-For entry is the one the proxy added; earlier ones are whatever the client sent
+  const ip = String(socket.handshake.headers['x-forwarded-for'] || '').split(',').pop().trim() || socket.handshake.address;
   const user = socket.boardpass ? { id: socket.boardpass.user.id, username: socket.boardpass.user.username } : null;
   game.register(socket, ip, user);
 });
+
+// a failed promise somewhere (a push service, the sign-in server) is logged, not fatal for every table
+process.on('unhandledRejection', (err) => console.error('Unhandled:', err));
 
 server.listen(PORT, () => console.log(`Blood on the Clocktower helper on :${PORT}${BASE || '/'}${boardpass ? ' (Boardpass sign-in on)' : ''}`));

@@ -267,7 +267,6 @@ const sync = (t) => {
 };
 socket.on('botc:pub', (v) => {
   sync(v);
-  const was = pub?.timer?.left;
   pub = v;
   if (mode === 'public' || mode === 'waiting') render();
 });
@@ -315,12 +314,12 @@ socket.on('botc:msg', (m) => {
 });
 
 // ---------- Helpers ----------
-function toast(msg) {
+function toast(msg, ms = 2600) {
   const t = $('#toast');
   t.textContent = msg;
   t.classList.add('on');
   clearTimeout(toast.t);
-  toast.t = setTimeout(() => t.classList.remove('on'), 2600);
+  toast.t = setTimeout(() => t.classList.remove('on'), ms);
 }
 const TEAMS = [
   ['townsfolk', 'Townsfolk'],
@@ -571,7 +570,7 @@ const P_BODY = {
           const self = s.playerId === myId;
           const full = me.reveal ? s : null;
           return `<button class="seat ${s.dead ? 'dead' : ''} ${self ? 'self' : ''}" data-act="guess" data-seat="${s.id}">
-            ${full?.role ? token(full.shown && full.shown.id !== full.role.id ? full.role : full.role, { align: full.align, label: true }) : self ? '<span class="tk tk-back mine-back"></span>' : token(r, { label: Boolean(r), cls: `${r ? 'guess' : ''} ${al ? `g-${al}` : ''}` })}
+            ${full?.role ? token(full.role, { align: full.align, label: true }) : self ? '<span class="tk tk-back mine-back"></span>' : token(r, { label: Boolean(r), cls: `${r ? 'guess' : ''} ${al ? `g-${al}` : ''}` })}
             ${!full && !self && al ? `<span class="g-mark ${al}">${al === 'evil' ? '😈' : '😇'}</span>` : ''}
             ${s.dead ? `<span class="shroud ${s.ghost ? '' : 'voted'}" title="${s.ghost ? 'dead' : 'dead · ghost vote used'}"></span>` : ''}
             <span class="seat-name">${esc(s.name)}${self ? ' (you)' : ''}</span>
@@ -651,10 +650,7 @@ function historyHtml(list, openLast) {
     .map(
       (n, i) => `<details class="hist" ${openLast && i === nights.length - 1 ? 'open' : ''}><summary>${n <= 1 ? 'First night' : `Night ${n}`}</summary><ul>${list
         .filter((h) => h.night === n)
-        .map((h) => {
-          const shown = [h.number !== null && h.number !== undefined ? `<b>${h.number}</b>` : '', h.seats.length ? esc(h.seats.join(', ')) : '', h.roles.length ? `<i>${esc(h.roles.join(', '))}</i>` : ''].filter(Boolean).join(' · ');
-          return `<li>${recordLine(h)}</li>`;
-        })
+        .map((h) => `<li>${recordLine(h)}</li>`)
         .join('')}</ul></details>`
     )
     .join('')}`;
@@ -768,7 +764,7 @@ const ST_BODY = {
         </div>`;
     if (v.phase === 'ended')
       return `<h2 class="h">${phaseLabel(v)}</h2>
-        <label class="toggle"><input type="checkbox" data-act="reveal" ${v.reveal ? 'checked' : ''}> Show the grimoire on the Wexer and phones</label>
+        <label class="toggle"><input type="checkbox" data-act="reveal" ${v.reveal ? 'checked' : ''}> Show the grimoire on the table view and phones</label>
         <button class="btn primary wide" data-act="newgame">New game with the same players</button>${revealHtml(v)}`;
     const n = v.players;
     const trav = v.seats.length - v.players;
@@ -793,7 +789,7 @@ const ST_BODY = {
         <form class="inline-form" id="add-name"><input id="add-name-in" placeholder="Add a name (no phone)" maxlength="24" autocomplete="off"${osk}><button class="btn small" type="submit">Add</button><button class="btn small" type="button" data-act="refresh-players">↻</button></form>
         ${n ? `<h4 class="sub">Seating, clockwise around the table</h4>
         <ol class="seat-list">${v.seats
-          .map((s, i) => `<li><span class="seat-i">${i + 1}</span><b>${esc(s.name)}</b>${s.role ? `<span class="muted small">${esc(s.role.name)}${s.shown ? ` (sees ${esc(s.shown.name)})` : ''}</span>` : ''}<span class="grow"></span><button class="icon-btn" data-act="move" data-seat="${s.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>↑</button><button class="icon-btn" data-act="move" data-seat="${s.id}" data-dir="1" ${i === n - 1 ? 'disabled' : ''}>↓</button></li>`)
+          .map((s, i) => `<li><span class="seat-i">${i + 1}</span><b>${esc(s.name)}</b>${s.role ? `<span class="muted small">${esc(s.role.name)}${s.shown ? ` (sees ${esc(s.shown.name)})` : ''}</span>` : ''}<span class="grow"></span><button class="icon-btn" data-act="move" data-seat="${s.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>↑</button><button class="icon-btn" data-act="move" data-seat="${s.id}" data-dir="1" ${i === v.seats.length - 1 ? 'disabled' : ''}>↓</button></li>`)
           .join('')}</ol>
         <button class="btn small" data-act="shuffle-seats">🔀 Shuffle seats</button>` : ''}
       </section>
@@ -1168,13 +1164,15 @@ function closeSheet() {
   $('#sheet').hidden = true;
   $('#sheet').innerHTML = '';
   sheetHandler = null;
+  // the Demon may have chosen while this sheet was open
+  setTimeout(killPopup, 0);
 }
 $('#sheet').addEventListener('click', (e) => {
   if (e.target.id === 'sheet' || e.target.closest('[data-sheet="close"]')) return closeSheet();
   sheetHandler?.(e);
 });
 
-function rolePicker(list, { selected = [], multi = false, title = 'Choose a character', extra = '' } = {}) {
+function rolePicker(list, { selected = [], title = 'Choose a character', extra = '' } = {}) {
   const groups = TEAMS.map(([team, label]) => {
     const rs = list.filter((r) => r.team === team);
     if (!rs.length) return '';
@@ -1182,7 +1180,7 @@ function rolePicker(list, { selected = [], multi = false, title = 'Choose a char
       .map((r) => `<button class="pick ${selected.includes(r.id) ? 'on' : ''}" data-role="${esc(r.id)}">${token(r, { size: 'sm' })}</button>`)
       .join('')}</div>`;
   }).join('');
-  return `<h2 class="h">${esc(title)}</h2>${extra}${groups}${multi ? '' : ''}`;
+  return `<h2 class="h">${esc(title)}</h2>${extra}${groups}`;
 }
 
 function confirmSheet(text, ok = 'Yes') {
@@ -1392,10 +1390,11 @@ function killPopup() {
   const ctx = nightCtx();
   const demon = st.seats.find((x) => x.id === p.seatId);
   const target = p.answer.seats[0] && st.seats.find((x) => x.id === p.answer.seats[0].id);
-  if (!target) return;
+  if (!target || !demon) return;
   const off = offReason(demon);
   // reasons the kill may not happen
   const why = [
+    demon.role?.team !== 'demon' && `${demon.name} only thinks they are the Demon (really the ${demon.role?.name || '?'}): nobody dies`,
     off && `${demon.name} (the Demon) is ${off}`,
     target.reminders.some((r) => /safe|protect/i.test(r.label)) && `${target.name} is protected (${target.reminders.find((r) => /safe|protect/i.test(r.label)).label})`,
     target.role?.id === 'soldier' && !offReason(target) && `${target.name} is the Soldier`,
@@ -1458,7 +1457,7 @@ function openCompose(step, sugs, idx) {
               <div class="chips">${st.seats.map((s) => `<button class="chip ${c.seats.includes(s.id) ? 'on' : ''}" data-seat="${s.id}">${esc(s.name)}</button>`).join('')}</div>
               <h3 class="sub">Show characters</h3>
               <div class="row">${c.roles.map((id) => token(roleById(id), { size: 'sm' })).join('') || '<span class="muted small">none</span>'}<button class="btn small" data-chars="1">${pickChars ? 'Done' : '✏️ Change'}</button></div>
-              ${pickChars ? rolePicker([...st.script.roles, ...st.extras], { selected: c.roles, multi: true, title: 'Characters to show' }) : ''}
+              ${pickChars ? rolePicker([...st.script.roles, ...st.extras], { selected: c.roles, title: 'Characters to show' }) : ''}
               <h3 class="sub">Show a number</h3>
               <div class="chips"><button class="chip ${c.number === null ? 'on' : ''}" data-num="">none</button>${[0, 1, 2, 3, 4, 5].map((n) => `<button class="chip ${c.number === n ? 'on' : ''}" data-num="${n}">${n}</button>`).join('')}</div>
               <label class="toggle"><input type="checkbox" id="c-grim" ${c.grim ? 'checked' : ''}> Show the whole Grimoire (Spy)</label>`
@@ -1592,7 +1591,7 @@ function openChooseRoles() {
 function openImport() {
   openSheet(
     `<h2 class="h">Import a script</h2>
-     <p class="hint">Paste the JSON from the official script tool or a community script site, or pick the .json file. Homebrew character images are downloaded once.</p>
+     <p class="hint">Paste the JSON from the official script tool or a community script site, or pick the .json file. Homebrew character images load from their own address.</p>
      <input type="file" id="imp-file" accept=".json,application/json">
      <textarea id="imp-text" class="notes short" placeholder='[{"id":"_meta","name":"My script"},"washerwoman","imp",…]'${osk}></textarea>
      <button class="btn primary wide" data-x="go">Import</button><p id="imp-msg" class="hint"></p>`,
@@ -1947,10 +1946,12 @@ document.addEventListener('submit', async (e) => {
     e.preventDefault();
     const inp = $('#send-text');
     const text = inp?.value.trim();
-    if (!text) return;
+    if (!text || f.dataset.busy) return;
+    f.dataset.busy = '1'; // a double tap on Send is one message
     const res = await call('botc:send', { to: thread, text });
-    if (res?.ok) inp.value = '';
-    else toast(res?.error || 'Not sent');
+    delete f.dataset.busy;
+    if (res?.ok && inp.value.trim() === text) inp.value = '';
+    else if (!res?.ok) toast(res?.error || 'Not sent');
     inp?.focus();
   }
   if (f.id === 'add-name') {
@@ -1958,7 +1959,7 @@ document.addEventListener('submit', async (e) => {
     const name = $('#add-name-in').value.trim();
     if (!name) return;
     const res = await call('botc:addName', { name });
-    if (!res?.ok) return toast(res?.error === 'exists' ? 'That name is already in the room' : 'Could not add');
+    if (!res?.ok) return toast(res?.error || 'Could not add');
     roomPlayers = (await call('botc:roomPlayers')) || [];
     await call('botc:seats', { ids: [...st.seats.map((s) => s.playerId), res.id] });
   }

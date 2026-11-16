@@ -109,7 +109,8 @@ export function suggest(step, ctx) {
 function raw(step, ctx) {
   if (step.id === 'minioninfo') {
     const demon = ctx.seats.find(isDemon);
-    const minions = ctx.seats.filter((s) => s.role?.team === 'minion');
+    // only players who know they're a Minion (a Marionette thinks they're good and stays asleep)
+    const minions = ctx.seats.filter((s) => s.role?.team === 'minion' && !s.shown);
     const lines = minions.length > 1 ? ` Your fellow Minions: ${minions.map((m) => m.name).join(', ')}.` : '';
     return [{ to: minions.map((m) => m.id), kind: 'info', text: `You are a Minion.${lines}`, seats: demon ? [demon.id] : [], seatsLabel: 'Your Demon' }];
   }
@@ -146,8 +147,10 @@ export function followUps(p, ctx) {
     const c = off ? pick(ctx.script.filter((x) => x.id !== chosen[0].role?.id)) : chosen[0].role;
     out.push({ label: `📱 Show ${chosen[0].name}'s character${off ? ` (${off}: false)` : ''}`, compose: { kind: 'info', text: `${chosen[0].name} is the`, roles: c ? [c.id] : [], to: [p.seatId], off, falseInfo: Boolean(off) } });
   }
-  if (r?.team === 'demon' && chosen[0] && !off) out.push({ label: `☠ ${chosen[0].name} dies`, dead: chosen[0].id });
-  if (r?.team === 'demon' && chosen[0] && off) out.push({ label: `The Demon is ${off}: nobody dies`, note: true });
+  const pretend = r?.team === 'demon' && actor?.role?.team !== 'demon'; // a Lunatic "attacks"
+  if (pretend) out.push({ label: `${actor?.name} only thinks they are the Demon: nobody dies`, note: true });
+  if (r?.team === 'demon' && chosen[0] && !off && !pretend) out.push({ label: `☠ ${chosen[0].name} dies`, dead: chosen[0].id });
+  if (r?.team === 'demon' && chosen[0] && off && !pretend) out.push({ label: `The Demon is ${off}: nobody dies`, note: true });
   if (r?.team === 'demon' && chosen[0] && chosen[0].id === p.seatId) out.push({ label: 'The Demon chose themselves: pass it on', note: true });
   const rem = r?.reminders?.find((x) => !/dead|died/i.test(x)) || (r?.team === 'demon' ? null : r?.reminders?.[0]);
   if (rem && p.step !== 'fortuneteller' && p.step !== 'ravenkeeper')
