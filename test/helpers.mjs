@@ -104,7 +104,7 @@ export async function startServer({ env = {}, push = false } = {}) {
         const p = await s.conn();
         const name = names?.[i] || `P${i + 1}`;
         const j = await p.call('room:join', { code: r.code, name });
-        Object.assign(p, { id: j.playerId, token: j.token, name });
+        Object.assign(p, { id: j.playerId, key: j.key, name });
         ps.push(p);
       }
       await until(() => st.st?.seats?.length === n);

@@ -15,7 +15,12 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 - Socket events: room:create / room:join / room:watch / room:st / room:hello / room:leave, then botc:* (same as
   the Wexer version). Socket.IO rooms: `<code>:st`, `<code>:pub`, `<code>:p:<playerId>`.
 - Client works at the root and under BASE_PATH (all URLs relative; socket path from location.pathname).
-- Session per device in localStorage `botc-session` ({ code, role, playerId, token }).
+- Session per device in localStorage `botc-session` ({ code, role, playerId, key, token }).
+- Player keys (sign-in off): each member has a secret `key`; `room:hello`/`room:join` need playerId + key (members saved
+  before keys: id alone, then they get one). In setup, joining with a taken name moves the seat at once (`giveSeat`: new
+  key, other devices get `room:moved`). After the start it becomes a request (`requests`, in memory, one per name, gone
+  when the device disconnects); the storyteller gets a pop-up (`st.requests`, `botc:approve`), the device waits in mode
+  `asking` and gets `room:approved` / `room:denied`. Boardpass users are their account, no keys.
 - Joining a room during setup seats you automatically; "Leave this game" / the storyteller can untick.
 - Homebrew images are hotlinked (https only), never fetched by the server (no SSRF on a public server).
 - TPI Community Created Content Policy: free, CCC logo visible, unofficial line, in-person only (no online
