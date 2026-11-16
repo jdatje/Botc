@@ -106,3 +106,16 @@ test('nobody sees another player\'s character', async () => {
   const w = await watcher.call('room:watch', { code: x.code });
   for (const z of w.pub.seats) assert.deepEqual(Object.keys(z).sort(), PUBLIC, 'the town view shows no characters');
 });
+
+test('moving a seat: one step either way, wrapping round the table', async () => {
+  const x = await s.room(5);
+  const order = () => x.st.st.seats.map((z) => z.name).join();
+  const first = x.st.st.seats[0].id;
+  await x.st.call('botc:moveSeat', { seatId: first, dir: 1 });
+  await until(() => order() === 'P2,P1,P3,P4,P5');
+  await x.st.call('botc:moveSeat', { seatId: first, dir: -1 });
+  await x.st.call('botc:moveSeat', { seatId: first, dir: -1 });
+  await until(() => order() === 'P5,P2,P3,P4,P1');
+  assert.equal(order(), 'P5,P2,P3,P4,P1');
+  assert.equal((await x.ps[0].call('botc:moveSeat', { seatId: first, dir: 1 }))?.ok, false, 'players cannot move seats');
+});

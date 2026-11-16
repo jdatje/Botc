@@ -64,8 +64,26 @@ const pageGate = async (req, res, next) => {
 
 const site = express.Router();
 site.use(compression());
+// Only the site's own scripts, styles and fonts; images also from any https address (homebrew
+// scripts hotlink theirs). No frame-ancestors: the Wexer shows the game in a frame.
+const csp = (req) => {
+  const host = String(req.get('host') || '').replace(/[^a-zA-Z0-9.:[\]-]/g, '');
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' https: data: blob:",
+    "font-src 'self'",
+    `connect-src 'self'${host ? ` wss://${host} ws://${host}` : ''}`,
+    "frame-src 'self'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ].join('; ');
+};
 site.use((_req, res, next) => {
-  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' });
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Content-Security-Policy': csp(_req) });
   next();
 });
 // version: the git commit the image was built from (set by the deploy pipeline)

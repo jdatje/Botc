@@ -439,6 +439,24 @@ const unreadTotal = () => Object.keys(chats).reduce((n, k) => n + unread(k), 0);
 
 // ---------- Render ----------
 let lastBody = '';
+// a redraw of the same tab (someone joined, a timer tick) keeps half-typed text, focus and cursor
+function keepTyped() {
+  const fields = [...$('#bd').querySelectorAll('input[id], textarea[id], select[id]')].filter((x) => x.type !== 'checkbox' && x.type !== 'radio' && x.value !== x.defaultValue);
+  const active = document.activeElement?.id && $('#bd').contains(document.activeElement) ? document.activeElement : null;
+  if (!fields.length && !active) return null;
+  const saved = fields.map((x) => [x.id, x.value]);
+  const sel = active && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
+  return () => {
+    for (const [id, value] of saved) {
+      const x = document.getElementById(id);
+      if (x && x.value === x.defaultValue) x.value = value;
+    }
+    const a = active && document.getElementById(active.id);
+    if (!a) return;
+    a.focus({ preventScroll: true });
+    if (sel) try { a.setSelectionRange(...sel); } catch {}
+  };
+}
 function render(force) {
   if (DEVGRID) return renderDevGrid();
   updateNight();
@@ -452,6 +470,8 @@ function render(force) {
   const tabs = mode === 'st' ? ST_TABS : P_TABS;
   const cur = mode === 'st' ? stab : ptab;
   const key = `${mode}:${cur}:${thread || ''}:${cur === 'chats' && thread ? locked(thread) : ''}`;
+  // half-typed text survives any redraw of the same tab, also a full one
+  const typed = key === lastBody && $('#bd') ? keepTyped() : null;
   if (!$('#hd') || force) {
     app.innerHTML = `<header id="hd" class="hd"></header><main id="bd" class="bd"></main><nav id="nav" class="nav"></nav>`;
     lastBody = '';
@@ -473,6 +493,7 @@ function render(force) {
   lastBody = key;
   const body = mode === 'st' ? ST_BODY[stab]() : P_BODY[ptab]();
   $('#bd').innerHTML = body;
+  if (typed) typed();
   $('#bd').classList.toggle('in-thread', cur === 'chats' && Boolean(thread));
   $('#bd').scrollTop = scroll;
   if (cur === 'chats' && thread) {
@@ -1934,7 +1955,7 @@ const ACT = {
     await call('botc:seats', { ids: ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id] });
   },
   'refresh-players': loadRoomPlayers,
-  move: (b) => call('botc:move', { seatId: b.dataset.seat, dir: Number(b.dataset.dir) }),
+  move: (b) => call('botc:moveSeat', { seatId: b.dataset.seat, dir: Number(b.dataset.dir) }),
   'shuffle-seats': () => call('botc:shuffleSeats'),
   'random-roles': async () => {
     const res = await call('botc:randomRoles');
