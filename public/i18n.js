@@ -82,6 +82,8 @@ const NL = {
   'Marked dead': 'Dood gemarkeerd', 'Nothing to send for this step': 'Niets te versturen voor deze stap', 'No other suggestion for this one': 'Geen andere suggestie hiervoor',
   'Import a script': 'Script importeren', '⬆️ Import a script (JSON)': '⬆️ Script importeren (JSON)', 'Test mode': 'Testmodus', '🧪 Test mode': '🧪 Testmodus',
   'How many players?': 'Hoeveel spelers?',
+  'Show the grimoire on the table view and phones': 'Toon de grimoire op de tafelweergave en telefoons',
+  'Something went wrong': 'Er ging iets mis', 'The game has already started': 'Het spel is al begonnen',
   'From the storyteller': 'Van de verteller', 'Got it': 'Begrepen', 'Card from you': 'Kaart van jou',
   '📱 Send to a player': '📱 Naar een speler sturen', '📱 Send this card': '📱 Deze kaart sturen', To: 'Naar', 'Show full screen': 'Volledig scherm tonen',
   'My notes': 'Mijn notities', 'Game record': 'Spelverslag', 'After the game': 'Na het spel', Setup: 'Opzet',
@@ -178,6 +180,8 @@ const PATTERNS = [
   [/^🔔 Test sent to (.+)$/, '🔔 Test verstuurd naar $1'],
   [/^(.+) has no alerts on$/, '$1 heeft geen meldingen aan'],
   [/^What is (.+)\?$/, 'Wat is $1?'],
+  [/^⚠ (.+) only thinks they are the Demon \(really the (.+)\): nobody dies$/, '⚠ $1 denkt alleen de Demon te zijn (in het echt de $2): niemand sterft'],
+  [/^(.+) only thinks they are the Demon: nobody dies$/, '$1 denkt alleen de Demon te zijn: niemand sterft'],
   [/^Skipped \(dead\): (.+)$/, 'Overgeslagen (dood): $1'],
   [/^(🌙|☀️|🕯️) First night$/, '$1 Eerste nacht'],
   [/^Start the group: pick 2 or more$/, 'Start de groep: kies er 2 of meer'],
@@ -201,7 +205,7 @@ function tr(text) {
       }
     }
   if (out === undefined) return text;
-  return text.replace(t, out);
+  return text.replace(t, () => out); // a function: '$' in a name is not a replace pattern
 }
 
 const SKIP = 'textarea, input, .msg, .msgs, .notes, .seat-note, .ns-names, .chat-mid b, .hd-name, script, style';

@@ -46,4 +46,12 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 - Grimoire reminders: small tokens (`.rtk`) stacked from each seat towards the middle (`--ux/--uy` set in
   layoutSquares). Auto reminders: Poisoner/Monk/Butler on answer; Washerwoman/Librarian/Investigator on the two
   shown players (team label + Wrong); Undertaker "Died Today" on a day death (cleared at the next dawn).
+- Hardening (review 16 Nov 2026): every socket handler goes through `listen()` in `register` (payload always an
+  object, ack a function or nothing, try/catch) — add new events with `on()`/`listen()`, never bare `socket.on`.
+  Keys from clients are looked up with `Object.hasOwn` (members, groups, custom roles): `__proto__` as a player id
+  once made every socket a storyteller. Push endpoints must be a browser push service (`lib/push.js` allowlist,
+  `PUSH_EXTRA_HOSTS` for tests). Wrong storyteller codes are braked per address and per room.
+- Phones show the side of the character a player thinks they are (`phoneAlign`): Drunk/Marionette good, Lunatic evil.
+- Night order skips dead players, except: own death since dawn in the step text, Zombuul, a "Has Ability" reminder.
+- Day timer: reset to full and stopped at every dawn. Fortune Teller: a Red Herring is placed at start if missing.
 - Test locally: `BASE_PATH=/botc PORT=4100 DATA_DIR=/tmp/x node server.js`.
