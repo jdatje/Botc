@@ -54,7 +54,7 @@ function applyStyle() {
 }
 
 // ---------- State ----------
-let mode = 'loading'; // loading | home | waiting | player | st | public
+let mode = 'loading'; // loading | home | waiting | asking | player | st | public
 let pub = null; // public view
 let me = null; // player view
 let st = null; // storyteller view
@@ -65,7 +65,7 @@ let thread = null; // open chat
 let offset = 0; // server clock - our clock
 let roomPlayers = [];
 let done = new Set(); // night order items ticked off
-// this device's seat at a game: { code, role: 'player' | 'st' | 'watch', playerId, name, token }
+// this device's seat at a game: { code, role: 'player' | 'st' | 'watch', playerId, name, key, token }
 let session = (() => {
   try { return JSON.parse(store.get('botc-session') || 'null'); } catch { return null; }
 })();
@@ -110,8 +110,12 @@ async function hello() {
   const sameName = session?.role === 'player' && session.name && session.name.toLowerCase() === urlName.toLowerCase();
   if (urlCode && (urlWatch || urlName) && !(session?.code === urlCode && (urlWatch ? session.role === 'watch' : sameName || session.role === 'st'))) {
     const res = urlWatch ? await call('room:watch', { code: urlCode }) : await call('room:join', { code: urlCode, name: urlName });
+    if (res?.pending) {
+      cleanUrl();
+      return askingFor(res);
+    }
     if (res?.ok) {
-      saveSession(urlWatch ? { code: res.code, role: 'watch' } : { code: res.code, role: 'player', playerId: res.playerId, name: res.name });
+      saveSession(urlWatch ? { code: res.code, role: 'watch' } : { code: res.code, role: 'player', playerId: res.playerId, name: res.name, key: res.key });
       cleanUrl();
       return enterRoom(res);
     }
@@ -122,15 +126,49 @@ async function hello() {
     if (session && urlCode && urlCode !== session.code) saveSession(null);
     return setMode('home');
   }
-  const res = await call('room:hello', { code: session.code, token: session.token, playerId: session.playerId });
+  const res = await call('room:hello', { code: session.code, token: session.token, playerId: session.playerId, key: session.key });
   if (!res) return;
-  if (!res.ok) {
+  if (!res.ok || res.lost) {
     saveSession(null);
-    toast(res.error || 'That game is gone');
+    toast(res.lost ? 'Your seat is on another device now' : res.error || 'That game is gone', 5000);
     return setMode('home');
   }
+  if (res.key) saveSession({ ...session, key: res.key });
   enterRoom(res);
 }
+// a new device for a seat in a running game: wait for the storyteller
+let asking = null; // { code, name }
+function askingFor(res) {
+  asking = { code: res.code, name: res.name };
+  pub = res.pub;
+  setMode('asking');
+}
+function renderAsking() {
+  $('#app').innerHTML = `<div class="center pad"><div class="tk-back huge"></div><h1 class="h">Waiting for the storyteller</h1>
+    <p>${esc(`${asking?.name || ''} is already playing in game ${asking?.code || ''} on another device. The storyteller has to allow this one.`)}</p>
+    <p class="hint">Once allowed, the other device is logged out.</p>
+    <button class="btn" data-act="cancel-ask">✕ Cancel</button></div>`;
+}
+socket.on('room:approved', (res) => {
+  if (mode !== 'asking') return;
+  asking = null;
+  saveSession({ code: res.code, role: 'player', playerId: res.playerId, name: res.name, key: res.key });
+  toast('✓ The storyteller let you in');
+  enterRoom(res);
+});
+socket.on('room:denied', ({ replaced } = {}) => {
+  if (mode !== 'asking') return;
+  asking = null;
+  toast(replaced ? 'Another device asked for this seat' : 'The storyteller said no', 5000);
+  setMode('home');
+});
+socket.on('room:moved', () => {
+  saveSession(null);
+  myId = null;
+  me = null;
+  toast('Your seat is on another device now', 6000);
+  setMode('home');
+});
 socket.on('connect', hello);
 
 // ---------- Push notifications (locked phone, other app) ----------
@@ -309,6 +347,7 @@ socket.on('botc:st', (v) => {
   if (prevNight !== v.night) done = new Set();
   if (mode !== 'st') return;
   setTimeout(killPopup, 0);
+  setTimeout(requestPopup, 0);
   if (prevPhase !== v.phase) {
     if (v.phase === 'night') stab = 'night';
     if (v.phase === 'day') stab = 'grim';
@@ -409,6 +448,7 @@ function render(force) {
   if (mode === 'public') return renderPublic();
   if (mode === 'home') return renderHome();
   if (mode === 'waiting') return renderWaiting();
+  if (mode === 'asking') return renderAsking();
   const tabs = mode === 'st' ? ST_TABS : P_TABS;
   const cur = mode === 'st' ? stab : ptab;
   const key = `${mode}:${cur}:${thread || ''}:${cur === 'chats' && thread ? locked(thread) : ''}`;
@@ -1188,8 +1228,9 @@ function closeSheet() {
   $('#sheet').hidden = true;
   $('#sheet').innerHTML = '';
   sheetHandler = null;
-  // the Demon may have chosen while this sheet was open
+  // the Demon may have chosen, or a device asked for a seat, while this sheet was open
   setTimeout(killPopup, 0);
+  setTimeout(requestPopup, 0);
 }
 $('#sheet').addEventListener('click', (e) => {
   if (e.target.id === 'sheet' || e.target.closest('[data-sheet="close"]')) return closeSheet();
@@ -1399,6 +1440,28 @@ function openSeat(seatId) {
       }
       if (b.dataset.addg) await call('botc:reminder', { seatId, add: { label: b.dataset.addg } });
       openSeat(seatId);
+    }
+  );
+}
+
+// a player's new device asks for their seat (the game has started): allow or not
+const reqSeen = new Set();
+function requestPopup() {
+  if (mode !== 'st' || !$('#sheet').hidden) return;
+  const q = (st?.requests || []).find((x) => !reqSeen.has(`${x.playerId}:${x.t}`));
+  if (!q) return;
+  reqSeen.add(`${q.playerId}:${q.t}`);
+  openSheet(
+    `<h2 class="h">📱 ${esc(q.name)} wants to play on a new device</h2>
+     <p>Only allow this if ${esc(q.name)} is really switching phones (a new phone, the home-screen app, a dead battery). Their other device is logged out.</p>
+     <div class="row"><button class="btn primary big" data-q="yes">✓ Allow</button><button class="btn big" data-q="no">✕ No</button></div>`,
+    async (e) => {
+      const b = e.target.closest('[data-q]');
+      if (!b) return;
+      const r = await call('botc:approve', { playerId: q.playerId, allow: b.dataset.q === 'yes' });
+      closeSheet();
+      if (!r?.ok) toast(r?.error || 'Could not do that');
+      else if (b.dataset.q === 'yes') toast(`✓ ${q.name} is on the new device`);
     }
   );
 }
@@ -1889,6 +1952,11 @@ const ACT = {
   },
   reveal: (b) => call('botc:reveal', { on: b.checked }),
   newgame: () => call('botc:newGame'),
+  'cancel-ask': async () => {
+    await call('room:cancelJoin');
+    asking = null;
+    setMode('home');
+  },
   'push-on': () => pushOn(),
   'push-off': () => pushOff(),
   'push-test': async () => {
@@ -1943,10 +2011,13 @@ document.addEventListener('submit', async (e) => {
     e.preventDefault();
     const code = $('#join-code').value.trim().toUpperCase();
     const name = account ? account.username : $('#join-name').value.trim();
-    const res = await call('room:join', { code, name, playerId: session?.code === code ? session.playerId : null });
+    const mine = session?.code === code && session.role === 'player';
+    const res = await call('room:join', { code, name, playerId: mine ? session.playerId : null, key: mine ? session.key : null });
     if (!res?.ok) return toast(res?.error || 'Could not join');
     if (!account) store.set('botc-name', name);
-    saveSession({ code: res.code, role: 'player', playerId: res.playerId, name: res.name });
+    history.replaceState(null, '', BASE);
+    if (res.pending) return askingFor(res);
+    saveSession({ code: res.code, role: 'player', playerId: res.playerId, name: res.name, key: res.key });
     history.replaceState(null, '', BASE);
     return enterRoom(res);
   }
