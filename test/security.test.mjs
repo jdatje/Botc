@@ -67,3 +67,13 @@ test('players cannot run storyteller actions', async () => {
   await until(() => x.ps[0].me);
   assert.equal(x.ps[0].me.me?.role ?? null, null);
 });
+
+test('the page only runs its own scripts', async () => {
+  const r = await fetch(`${s.url}/`);
+  const csp = r.headers.get('content-security-policy') || '';
+  assert.match(csp, /script-src 'self'(;|$)/);
+  assert.match(csp, /font-src 'self'/);
+  assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+  const html = await r.text();
+  assert.ok(!/fonts\.googleapis|<script>(?!<\/script>)/.test(html), 'no outside fonts, no inline scripts');
+});

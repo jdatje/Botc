@@ -65,4 +65,9 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 - Tests: `npm test` (node:test, `test/*.test.mjs`; each file starts its own server via `test/helpers.mjs`, with a fake
   https push service). They run in CI on every PR and block the merge. Jeroen: run them for every change unless he says
   otherwise; add a test for each bug fixed. room:create is limited to 20/hour per address, so ≤20 rooms per test file.
+- Fonts are self-hosted (`public/fonts.css` + `public/fonts/*.woff2`, from Fontsource, OFL). server.js sends a
+  Content-Security-Policy: own scripts only (no inline `<script>`, no `onclick=`), styles may be inline, images from any
+  https address (homebrew), no frame-ancestors (the Wexer frames the game).
+- Redraws of the same tab keep half-typed text and focus (`keepTyped` in render). Inputs need an `id` for that.
+- Seat order: one event, `botc:moveSeat` (wraps round), used by the setup list and the grimoire.
 - Test locally: `BASE_PATH=/botc PORT=4100 DATA_DIR=/tmp/x node server.js`.
