@@ -1,7 +1,7 @@
 // Player keys (sign-in off): a seat belongs to a device; after the start the storyteller approves a new one.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer, until, sleep } from './helpers.mjs';
+import { startServer, until } from './helpers.mjs';
 
 let s;
 before(async () => (s = await startServer()));
