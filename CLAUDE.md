@@ -10,8 +10,15 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 (hosted by Gregor, sign-in via Boardpass at boardpass.maisonbaron.nl). All UI text in English.
 
 - Rooms: 5-char codes (no I/O/0/1); room = { code, g (game), members, tokens, stCode, scripts }, saved to
-  DATA_DIR/rooms/<code>.json, deleted after ROOM_TTL_HOURS idle. `lib/game.js` handles one room at a time via
-  `use(room)` (module vars R/g) — keep socket handlers synchronous so rooms can't mix.
+  DATA_DIR/rooms/<code>.json, deleted after ROOM_TTL_HOURS idle. `lib/state.js` holds the room being handled via
+  `use(room)` (module vars R/g, live imports elsewhere; `setGame` for a new game, `setIo`) — keep socket handlers
+  synchronous so rooms can't mix. Server modules: data · scripts · state · deal · night · views · alerts · game
+  (connections, `register` builds ctx) · handlers/{rooms,chat,storyteller,push,night,phases}.js (`export default (ctx)`).
+- Client modules (no build step): core.js (socket, store, $, esc, toast; imports nothing from app.js) · app.js (entry:
+  state, connect, render, actions) · player · phone-night · chats · storyteller · sheets · screens · alerts · testmode.
+  Other modules read app.js state as live imports and change it only via app.js `set…` functions; their top-level code
+  may only use core.js right away (app.js bindings aren't initialised yet when they load). `npm run lint` (CI) catches
+  missing imports and writes to imported state.
 - Socket events: room:create / room:join / room:watch / room:st / room:hello / room:leave, then botc:* (same as
   the Wexer version). Socket.IO rooms: `<code>:st`, `<code>:pub`, `<code>:p:<playerId>`.
 - Client works at the root and under BASE_PATH (all URLs relative; socket path from location.pathname).
