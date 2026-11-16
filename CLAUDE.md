@@ -57,4 +57,7 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 - Phones show the side of the character a player thinks they are (`phoneAlign`): Drunk/Marionette good, Lunatic evil.
 - Night order skips dead players, except: own death since dawn in the step text, Zombuul, a "Has Ability" reminder.
 - Day timer: reset to full and stopped at every dawn. Fortune Teller: a Red Herring is placed at start if missing.
+- Tests: `npm test` (node:test, `test/*.test.mjs`; each file starts its own server via `test/helpers.mjs`, with a fake
+  https push service). They run in CI on every PR and block the merge. Jeroen: run them for every change unless he says
+  otherwise; add a test for each bug fixed. room:create is limited to 20/hour per address, so ≤20 rooms per test file.
 - Test locally: `BASE_PATH=/botc PORT=4100 DATA_DIR=/tmp/x node server.js`.
