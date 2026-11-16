@@ -143,18 +143,37 @@ let pushKey = null;
 const b64 = (s) => Uint8Array.from(atob((s + '='.repeat((4 - (s.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 async function checkPush() {
   if (!PUSH_OK) return;
+  const before = pushState;
   try {
     const reg = await navigator.serviceWorker.register('sw.js');
     pushKey ||= (await (await fetch('push/key', { cache: 'no-store' })).json()).key;
     const sub = await reg.pushManager.getSubscription();
     pushState = Notification.permission === 'denied' ? 'denied' : sub && Notification.permission === 'granted' ? 'on' : 'off';
-    // this game needs to know this phone (a new game, or the server forgot it)
-    if (sub && pushState === 'on' && mode === 'player') call('push:subscribe', { sub: sub.toJSON(), lang: getLang() });
+    // this game needs to know this phone (a new game, seated later, or the server forgot it);
+    // "on" only when the game really has it
+    if (sub && pushState === 'on' && myId && (mode === 'player' || mode === 'waiting')) {
+      const res = await call('push:subscribe', { sub: sub.toJSON(), lang: getLang() });
+      if (!res?.ok) pushState = 'off';
+    }
   } catch (err) {
     console.warn('push', err);
   }
-  if (mode === 'player') render(true);
+  if (mode === 'player' && pushState !== before) render(true);
 }
+// the push service dropped this phone's address (iPhones do that now and then): make a new one, no tap needed
+socket.on('push:lost', async ({ endpoints } = {}) => {
+  if (!PUSH_OK) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub && !(endpoints || []).includes(sub.endpoint)) return;
+    await sub?.unsubscribe();
+    if (Notification.permission === 'granted') await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(pushKey) });
+  } catch (err) {
+    console.warn('push', err);
+  }
+  checkPush();
+});
 async function pushOn() {
   try {
     const perm = await Notification.requestPermission(); // first thing in the tap: iPhone needs that
@@ -198,6 +217,8 @@ function alertsCard() {
 // tell the server whether this page is in view: no push when you're looking at it anyway
 const sendVisible = () => socket.emit('push:visible', { visible: document.visibilityState === 'visible' });
 document.addEventListener('visibilitychange', sendVisible);
+// back in the app: make sure this game still has this phone's address
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && myId && checkPush());
 // keep saying "I'm on screen" while visible; when a phone locks, this stops and the server notices
 setInterval(() => document.visibilityState === 'visible' && socket.connected && sendVisible(), 10000);
 socket.on('push:testResult', (r) => !r.ok && toast(`Test failed: ${r.error}`, 8000));
@@ -273,7 +294,10 @@ socket.on('botc:pub', (v) => {
 socket.on('botc:me', (v) => {
   sync(v);
   me = v;
-  if (mode === 'waiting' && v.me) return setMode('player');
+  if (mode === 'waiting' && v.me) {
+    checkPush();
+    return setMode('player');
+  }
   if (mode === 'player' && !v.me) return setMode('waiting');
   if (mode === 'player') render();
 });
@@ -1334,7 +1358,7 @@ function openSeat(seatId) {
       if (b.dataset.a === 'align') await patch({ align: s.align === 'good' ? 'evil' : 'good' });
       if (b.dataset.a === 'testalert') {
         const r = await call('push:testSt', { seatId });
-        return toast(r?.sent?.length ? `🔔 Test sent to ${s.name}` : `${s.name} has no alerts on`);
+        return toast(r?.sent?.length ? `🔔 Test sent to ${s.name}` : r?.failed?.length ? `Could not reach ${s.name}'s phone` : `${s.name} has no alerts on`, 4000);
       }
       if (b.dataset.a === 'left' || b.dataset.a === 'right') {
         await call('botc:moveSeat', { seatId, dir: b.dataset.a === 'left' ? -1 : 1 });
@@ -1657,7 +1681,7 @@ function openSettings() {
       }
       if (b.dataset.x === 'test-all') {
         const r = await call('push:testSt', {});
-        return toast(r?.ok ? `🔔 Sent to ${r.sent.length}${r.off.length ? ` · no alerts on: ${r.off.join(', ')}` : ''}` : 'Could not send');
+        return toast(r?.ok ? `🔔 Sent to ${r.sent.length}${r.failed?.length ? ` · could not reach: ${r.failed.join(', ')}` : ''}${r.off.length ? ` · no alerts on: ${r.off.join(', ')}` : ''}` : 'Could not send');
       }
       if (b.dataset.x === 'layout-circle' || b.dataset.x === 'layout-table') {
         await call('botc:layout', { shape: b.dataset.x.slice(7) });

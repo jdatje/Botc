@@ -36,6 +36,9 @@ Standalone copy of the Blood on the Clocktower helper from the Wexer bar screen 
 - Web Push (`lib/push.js`, `public/sw.js`, `manifest.webmanifest`): night prompts (decoys too, same text), chat
   messages, 30 s / time's up. Only sent when none of the player's pages is visible (`push:visible`). iPhone needs the
   home-screen app (iOS 16.4+) → own storage, so players join again there. VAPID keys from env or DATA_DIR/vapid.json.
+  A page seen <20 s ago gets the push 13 s later unless it said "on screen" again (phone locked just after). A phone
+  re-registers its address on every join/seat/return to the app; a 404/410 address is dropped and the phone told
+  (`push:lost`) to make a new one. iOS ignores `tag` (alerts stack) and needs a visible notification for every push.
 - Dutch: `public/i18n.js` swaps on-screen English texts per device (`botc-lang`; exact map + patterns via a
   MutationObserver). New UI text → add its Dutch there. Character texts stay English (official NL behind a login).
 - Scarlet Woman: when the Demon dies with 5+ alive she becomes the Demon in the grimoire (`shown` stays Scarlet
